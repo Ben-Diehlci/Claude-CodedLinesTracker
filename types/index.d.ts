@@ -20,10 +20,12 @@ export type Stats = {
   startedAt: number
 }
 
+export type Totals = { life: Counts; today: Counts }
+
 export type Prefs = { status: boolean; pane: boolean; mascot: boolean }
 
 declare module 'claude-code' {
   interface PluginState {
-    'lines-tracker': { session: Shaped<Stats>; prefs: Shaped<Prefs> }
+    'lines-tracker': { session: Shaped<Stats>; prefs: Shaped<Prefs>; totals: Shaped<Totals> }
   }
 }

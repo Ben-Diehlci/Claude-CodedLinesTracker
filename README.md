@@ -4,12 +4,12 @@ A Claude Code mod that counts the lines of code Claude writes. It runs inside th
 
 Blank lines are always skipped. Every total is shown two ways: code only, and with comments. The pane also shows comment lines, files touched, writes and edits, pace per minute, totals for the session, today and all time, the top file types and the biggest files.
 
-Where it shows up: a status line entry, a side pane, and a small animated face beside the working spinner.
+Where it shows up: a boxed band above the prompt box, a side pane, and a small animated face beside the working spinner.
 
 Toggle with the slash command `/linecount`:
 
 - `/linecount` shows the pane and a one-line summary
-- `/linecount status on|off` status line entry
+- `/linecount status on|off` band above the prompt
 - `/linecount pane on|off` open the pane at session start
 - `/linecount mascot on|off` the animated face on the spinner
 - `/linecount reset` zeroes this session's counts (all-time totals stay)
