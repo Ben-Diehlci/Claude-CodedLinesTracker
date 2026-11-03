@@ -57,6 +57,9 @@ const bandSvg = async (ui: any) => (await ui.findAll({ type: 'Svg' })).find((x: 
 const svgAlt = async (ui: any, pick: RegExp) =>
   ((await ui.findAll({ type: 'Svg' })) as any[]).map(x => x.props?.alt as string).find(alt => pick.test(alt ?? ''))
 
+const svgSource = async (ui: any, pick: RegExp) =>
+  ((await ui.findAll({ type: 'Svg' })) as any[]).find(x => pick.test(x.props?.alt ?? ''))?.props.source as string | undefined
+
 const buttons = async (ui: any) => ((await ui.findAll({ type: 'Button' })) as any[]).map(b => b.props?.label as string)
 
 const stubs = (on: any) => {
@@ -315,6 +318,28 @@ test('a chat woken from sleep gets its own stats back from the store', async ($,
   const again = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
   expect((await again.find({ type: 'Text', text: /LINES/ }))?.text).toMatch(/LINES 444 code lines/)
   await again.unmount()
+})
+
+test('the pane follows its width when it is resized', async ($, on) => {
+  stubs(on)
+  memory(on)
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+
+  const widths = async (ui: any) => ((await ui.findAll({ type: 'Svg' })) as any[]).map(x => x.props.width as number)
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  const narrow = await widths(pane)
+  await pane.redraw({ ...PANE.props, bodyColumns: 120 } as any)
+  const wide = await widths(pane)
+  expect(narrow.every(n => n === narrow[0])).toBe(true)
+  expect(wide[0]).toBeGreaterThan(narrow[0] * 2)
+  // The heat strip spans the wider pane: its squares grow with it.
+  const sq = async () => Number(/<rect x="[\d.]+" y="16.5" width="(\d+)"/.exec((await svgSource(pane, /weeks/))!)![1])
+  const wideSq = await sq()
+  await pane.redraw({ ...PANE.props, bodyColumns: 40 } as any)
+  expect(wideSq).toBeGreaterThan(await sq())
+  await pane.unmount()
 })
 
 test('crossing 1,000 lines throws confetti', async ($, on) => {

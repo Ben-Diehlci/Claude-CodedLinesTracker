@@ -22,10 +22,10 @@ test('dump', async ($, on) => {
     console.log('@@band-' + id + '@@' + JSON.stringify(await b.drawn()) + '@@END@@')
     await b.unmount()
   }
-  for (const bg of ['none', 'paper', 'slate', 'night']) {
+  for (const [bg, cols] of [['none', 40], ['night', 40], ['none', 110]] as const) {
     await $.command.run({ command: 'linecount', args: `background ${bg}` })
-    const p = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
-    console.log('@@pane-' + bg + '@@' + JSON.stringify(await p.drawn()) + '@@END@@')
+    const p = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: cols }, surface: 'desktop' } as any)
+    console.log('@@pane-' + bg + '-' + cols + '@@' + JSON.stringify(await p.drawn()) + '@@END@@')
     await p.unmount()
   }
 })

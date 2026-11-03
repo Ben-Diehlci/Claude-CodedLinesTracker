@@ -1,7 +1,7 @@
 // The pane's sections as Svg markup for the desktop, laid out like design/mockups-v2.html (section 3, upgraded pane).
 // Each returns { h, src } for a box `w` wide; the terminal draws the same sections as text (panes.tsx).
 import { clawdBody, canvasH } from './clawd'
-import { est, heatMap, rect, ring, svgDoc, text } from './draw'
+import { est, heatStrip, rect, ring, svgDoc, text } from './draw'
 import type { Mode } from './draw'
 import { HEAT_WEEKS, fmt } from './model'
 import type { View } from './model'
@@ -45,7 +45,8 @@ const fit = (s: string, room: number): number => Math.max(9, Math.min(11, Math.f
 /** Two hairline cards: code share of this session, and today toward the goal. */
 export const ringsSvg = (v: View, w: number): Piece => {
   const h = 64
-  const cw = (w - 10) / 2
+  // Two cards side by side, each at most 320 px so a wide pane does not stretch them thin.
+  const cw = Math.min(320, (w - 10) / 2)
   const share = v.session.all ? v.session.code / v.session.all : 0
   const room = cw - 66
   // Full captions when they fit, else a shorter pair (the ring already shows the share).
@@ -73,20 +74,23 @@ export const ringsSvg = (v: View, w: number): Piece => {
 
 /** 12-week heat map, then the streak and busiest day. */
 export const heatSvg = (v: View, w: number): Piece => {
-  // Fewer weeks, so bigger squares than the mockup's 12-week map.
-  const cs = 20
-  const gap = 4
-  const gh = 7 * (cs + gap)
+  // One row of the last 4 weeks across the pane's width (Ben: horizontal, to save height).
+  const n = HEAT_WEEKS * 7
+  const strip = heatStrip(0, 16, v.days, v.now, w, n)
+  const start = new Date(v.now - (n - 1) * 86_400_000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const first = `${v.streak}-day streak (best ${v.bestStreak}).`
   const second = v.best ? `Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''
   const note = second ? `${first} ${second}` : first
   // One line when it fits, else the busiest day goes on a line of its own.
   const lines = est(note, 12) <= w ? [note] : [first, second]
-  const h = 14 + gh + 4 + lines.length * 16
+  const top = 16 + strip.h
+  const h = top + 14 + lines.length * 16
   const s =
     text(0, 10, `LAST ${HEAT_WEEKS} WEEKS`, TAG) +
-    heatMap(0.5, 16.5, v.days, v.now, cs, gap, HEAT_WEEKS) +
-    lines.map((l, i) => text(0, 14 + gh + 16 + i * 16, l, { cls: 'mu', size: 12 })).join('')
+    strip.svg +
+    text(0, top + 11, start, { cls: 'mu', size: 10 }) +
+    text(strip.right, top + 11, 'today', { cls: 'mu', size: 10, anchor: 'end' }) +
+    lines.map((l, i) => text(0, top + 14 + 14 + i * 16, l, { cls: 'mu', size: 12 })).join('')
 
   return piece(w, h, s, `Lines per day, last ${HEAT_WEEKS} weeks. ${note}`)
 }
@@ -97,18 +101,25 @@ export const sessionsSvg = (v: View, w: number): Piece => {
   const rh = 21
   const h = 16 + rows.length * rh
   const max = Math.max(1, ...rows.map(r => r.code))
-  const barX = Math.max(120, w - 70 - 44 - 8)
+  const { barX, barW } = barsFor(w)
   let s = text(0, 10, 'SESSIONS RIGHT NOW', TAG)
   rows.forEach((r, i) => {
     const y = 16 + i * rh + rh / 2
     const blink = r.hot ? '<animate attributeName="opacity" calcMode="discrete" values="1;.35" dur="1s" repeatCount="indefinite"/>' : ''
     s += `<circle cx="5" cy="${y}" r="4" class="${r.active ? 'cf' : 'hf'}">${blink}</circle>`
     s += text(18, y + 4.5, clip(r.name, Math.floor((barX - 26) / 7)), { cls: 'fg', size: 13 })
-    s += rect(barX, y - 3, Math.max(4, 70 * (r.code / max)), 6, 'sa', 3)
+    s += rect(barX, y - 3, Math.max(4, barW * (r.code / max)), 6, 'sa', 3)
     s += text(w, y + 4.5, fmt(r.code), { cls: 'mu', size: 13, anchor: 'end' })
   })
 
   return piece(w, h, s, `Sessions right now: ${rows.map(r => `${r.name} ${fmt(r.code)}`).join(', ')}`)
+}
+
+/** Row bars grow with the pane (a quarter of it, 70 to 240 px), ending 52 px before the number at the right edge. */
+const barsFor = (w: number): { barX: number; barW: number } => {
+  const barW = Math.round(Math.max(70, Math.min(240, w * 0.25)))
+
+  return { barX: Math.max(120, w - barW - 52), barW }
 }
 
 const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
@@ -144,12 +155,12 @@ export const filesSvg = (v: View, w: number): Piece => {
   const rows = v.byFile
   const h = 16 + Math.max(1, rows.length) * rh
   const max = Math.max(1, ...rows.map(([, n]) => n))
-  const barX = Math.max(120, w - 70 - 44 - 8)
+  const { barX, barW } = barsFor(w)
   let s = text(0, 10, 'BIGGEST FILES', TAG)
   rows.forEach(([path, n], i) => {
     const y = 16 + i * rh + rh / 2
     s += text(0, y + 4.5, clip(path.split('/').pop() ?? path, Math.floor((barX - 8) / 7)), { cls: 'fg', size: 13 })
-    s += rect(barX, y - 3, Math.max(4, 70 * (n / max)), 6, 'cf', 3)
+    s += rect(barX, y - 3, Math.max(4, barW * (n / max)), 6, 'cf', 3)
     s += text(w, y + 4.5, fmt(n), { cls: 'mu', size: 13, anchor: 'end' })
   })
   if (!rows.length) s += text(0, 16 + rh / 2 + 4.5, 'nothing written yet this session', { cls: 'mu', size: 12 })

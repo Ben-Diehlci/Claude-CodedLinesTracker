@@ -1,7 +1,7 @@
 // The pane: a list of sections (each on or off in prefs) and the "Look" chooser at the bottom.
 import type { Prefs } from '../types'
 import { pack, sparkCells, sparkSvg } from './clawd'
-import { goalBar, heatCellsRaw } from './draw'
+import { goalBar, heatStripCells } from './draw'
 import { PANE_SVG, setMode } from './panesvg'
 import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt, lastDays } from './model'
 import type { View } from './model'
@@ -104,11 +104,12 @@ const sections: Record<string, Section> = {
 
   heat: ({ kit, v }) => {
     const { Box, Text, Raster } = kit.ui
+    const strip = heatStripCells(v.days, v.now, HEAT_WEEKS * 7)
 
     return (
       <Box flexDirection="column">
         <Text color={SAND} bold>{`LAST ${HEAT_WEEKS} WEEKS`}</Text>
-        <Raster key="heat" columns={HEAT_WEEKS} rows={7} cells={pack(heatCellsRaw(v.days, v.now, HEAT_WEEKS))} />
+        <Raster key="heat" columns={strip.columns} rows={1} cells={pack(strip.cells)} />
         <Text dimColor>
           {`${v.streak}-day streak (best ${v.bestStreak}).`}
           {v.best ? ` Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''}
@@ -253,7 +254,7 @@ const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
 }
 
 /** Desktop pane width: the pane's column in pixels, less a margin. */
-const paneWidth = (cols: number): number => Math.max(240, Math.min(600, cols * 8 - 24))
+const paneWidth = (cols: number): number => Math.max(240, Math.min(1600, cols * 8 - 24))
 
 export const renderPane = (ctx: PaneCtx) => {
   const { Box, Svg } = ctx.kit.ui

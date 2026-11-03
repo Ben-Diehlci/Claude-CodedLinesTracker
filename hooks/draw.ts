@@ -156,26 +156,61 @@ export const dots = (x: number, y: number, rows: { active: boolean; hot: boolean
     })
     .join('')
 
-/** Heat map: `weeks` columns x 7 days (Monday first), the last column ends today. */
-export const heatMap = (x: number, y: number, days: Record<string, { code: number }>, now: number, cs = 12, gap = 3, weeks = 4): string => {
-  const wd = (new Date(now).getDay() + 6) % 7
-  const total = (weeks - 1) * 7 + wd + 1
-  const key = (ms: number): string => {
-    const d = new Date(ms)
+const dayKeyOf = (ms: number): string => {
+  const d = new Date(ms)
 
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-  const vals = Array.from({ length: total }, (_, k) => days[key(now - (total - 1 - k) * 86_400_000)]?.code ?? 0)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * The last `n` days as rows of squares across `w` px, oldest first, today last (outlined), a little extra
+ * space before each Monday so the weeks read. One row when the squares stay 11 px or more, else two rows
+ * (two weeks each) so a narrow pane keeps readable squares. Returns the markup, its height and right edge.
+ */
+export const heatStrip = (x: number, y: number, days: Record<string, { code: number }>, now: number, w: number, n: number, gap = 3) => {
+  const ms = Array.from({ length: n }, (_, k) => now - (n - 1 - k) * 86_400_000)
+  const vals = ms.map(t => days[dayKeyOf(t)]?.code ?? 0)
   const max = Math.max(1, ...vals)
+  const weekGap = gap * 2
+  const size = (perRow: number) => {
+    const breaks = ms.slice(1, perRow).filter(t => new Date(t).getDay() === 1).length
+    return Math.min(26, Math.floor((w - 1 - (perRow - 1) * gap - breaks * weekGap) / perRow))
+  }
+  const rows = size(n) >= 11 ? 1 : 2
+  const perRow = Math.ceil(n / rows)
+  const cs = Math.max(6, size(perRow))
   let out = ''
-  vals.forEach((v, k) => {
-    const lvl = heat(v, max)
-    const last = k === total - 1
-    const cls = (lvl ? `h${lvl}` : 'tn hs') + (last ? ' fs' : '')
-    out += `<rect x="${x + Math.floor(k / 7) * (cs + gap)}" y="${y + (k % 7) * (cs + gap)}" width="${cs}" height="${cs}" rx="${cs > 14 ? 4 : 2}" class="${cls}"${last ? ' stroke-width="1.5"' : ''}/>`
+  let right = 0
+  for (let r = 0; r < rows; r++) {
+    let cx = x
+    ms.slice(r * perRow, (r + 1) * perRow).forEach((t, i) => {
+      const k = r * perRow + i
+      if (i > 0 && new Date(t).getDay() === 1) cx += weekGap
+      const lvl = heat(vals[k], max)
+      const last = k === n - 1
+      const cls = (lvl ? `h${lvl}` : 'tn hs') + (last ? ' fs' : '')
+      out += `<rect x="${num(cx + 0.5)}" y="${num(y + r * (cs + gap) + 0.5)}" width="${cs}" height="${cs}" rx="${cs > 14 ? 4 : 2}" class="${cls}"${last ? ' stroke-width="1.5"' : ''}/>`
+      cx += cs + gap
+    })
+    right = Math.max(right, cx - gap)
+  }
+
+  return { svg: out, h: rows * (cs + gap) - gap + 1, right }
+}
+
+/** The same strip as terminal cells for a Raster: one row, one cell per day, a blank before each Monday. */
+export const heatStripCells = (days: Record<string, { code: number }>, now: number, n: number): { cells: [number, number, number][]; columns: number } => {
+  const ms = Array.from({ length: n }, (_, k) => now - (n - 1 - k) * 86_400_000)
+  const vals = ms.map(t => days[dayKeyOf(t)]?.code ?? 0)
+  const max = Math.max(1, ...vals)
+  const shades = [0x45443f, 0x8a4a36, 0xb25e43, 0xd97757, 0xf0a383]
+  const cells: [number, number, number][] = []
+  ms.forEach((t, k) => {
+    if (k > 0 && new Date(t).getDay() === 1) cells.push([0x20, 0x01000000, 0x01000000])
+    cells.push([0x25a0, shades[heat(vals[k], max)], 0x01000000])
   })
 
-  return out
+  return { cells, columns: cells.length }
 }
 
 /** Confetti for a milestone: pieces fly out from (cx, cy) and fade. Redrawn every few seconds, so it ends by itself. */
@@ -210,27 +245,4 @@ export const hoursText = (hours: number[]): string => {
   const max = Math.max(1, ...hours)
 
   return hours.map(n => (n === 0 ? '▁' : BLOCKS[Math.max(2, Math.round((n / max) * 8))])).join('')
-}
-
-/** Heat map as terminal cells (glyph, fg, bg) for a Raster: weeks columns, 7 rows. */
-export const heatCellsRaw = (days: Record<string, { code: number }>, now: number, weeks = 4): [number, number, number][] => {
-  const wd = (new Date(now).getDay() + 6) % 7
-  const total = (weeks - 1) * 7 + wd + 1
-  const key = (ms: number): string => {
-    const d = new Date(ms)
-
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-  const vals = Array.from({ length: total }, (_, k) => days[key(now - (total - 1 - k) * 86_400_000)]?.code ?? 0)
-  const max = Math.max(1, ...vals)
-  const shades = [0x45443f, 0x8a4a36, 0xb25e43, 0xd97757, 0xf0a383]
-  const cells: [number, number, number][] = []
-  for (let r = 0; r < 7; r++) {
-    for (let c = 0; c < weeks; c++) {
-      const k = c * 7 + r
-      cells.push(k < total ? [0x25a0, shades[heat(vals[k], max)], 0x01000000] : [0x20, 0x01000000, 0x01000000])
-    }
-  }
-
-  return cells
 }

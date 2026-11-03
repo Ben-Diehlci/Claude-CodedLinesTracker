@@ -33,6 +33,6 @@ def el(n):
 page = '<!doctype html><meta charset=utf-8><style>body{background:#262624;color:#F5F4EE}@media (prefers-color-scheme: light){body{background:#fff;color:#1F1E1D}}</style><body style="margin:0;font:14px/1.45 -apple-system,system-ui,sans-serif;padding:16px">'
 for m in re.finditer(r'@@([\w-]+)@@(.*?)@@END@@', t, re.S):
     name, tree = m.group(1), json.loads(m.group(2))
-    w = '340px' if name.startswith('pane') else '980px'
+    w = 'auto' if name.startswith('pane') else '980px'
     page += f'<div style="display:inline-block;vertical-align:top;margin:0 12px 12px 0"><div style="font-size:11px;color:#9C9A92;margin:14px 0 4px">{name}</div><div style="width:{w};border:1px dashed #999;padding:8px">{el(tree)}</div></div>'
 open(out, 'w').write(page)

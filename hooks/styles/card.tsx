@@ -37,7 +37,7 @@ export const card: Design = {
     }
 
     const side = w - tx > 520
-    const bw = Math.max(120, Math.min(300, w - tx - (side ? 200 : 150)))
+    const bw = Math.max(120, Math.min(520, w - tx - (side ? 200 : 150)))
     inner += dither(tx, 33, bw, 16, v.goalFrac, fmt(v.today.code))
     inner += text(tx + bw + 10, 46, `${fmt(v.today.code)} / ${fmt(v.goal)} lines today`, { cls: 'mu', size: 12 })
     if (side) {
