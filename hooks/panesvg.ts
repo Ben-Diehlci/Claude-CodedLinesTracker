@@ -49,12 +49,14 @@ const legend = (x: number, y: number, room: number, items: [string, number, stri
   let row = 0
   for (const [name, n, fill] of items) {
     const label = `${name} ${fmt(n)}`
-    const iw = 10 + est(label, 11) + 10
+    // Smaller type when one item alone would run past the card's edge.
+    const size = fit(label, room - 10)
+    const iw = 10 + est(label, size) + 10
     if (cx > 0 && cx + iw > room) {
       cx = 0
       row++
     }
-    s += `<circle cx="${x + cx + 3.5}" cy="${y + row * 14 - 3.5}" r="3.5" class="${fill}"/>` + text(x + cx + 10, y + row * 14, label, { cls: 'mu', size: 11 })
+    s += `<circle cx="${x + cx + 3.5}" cy="${y + row * 14 - 3.5}" r="3.5" class="${fill}"/>` + text(x + cx + 10, y + row * 14, label, { cls: 'mu', size })
     cx += iw
   }
 
@@ -78,7 +80,7 @@ export const ringsSvg = (v: View, w: number): Piece => {
   const room = cw - 72
   const cards = [
     { big: v.today.code, cap: 'lines today, by model', sl: slices(v.modelsToday, v.earlierToday, 'earlier') },
-    { big: v.life.code, cap: 'lines all time, by model', sl: slices(v.modelsLife, v.earlierLife, 'before Nov 3') },
+    { big: v.life.code, cap: 'lines all time, by model', sl: slices(v.modelsLife, v.earlierLife, 'earlier') },
   ].map(c => ({ ...c, key: legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])) }))
   const h = Math.max(64, 44 + Math.max(...cards.map(c => c.key.rows)) * 14)
   let s = ''

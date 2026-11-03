@@ -469,10 +469,25 @@ test('the ring cards split lines by model: today across sessions, all time with 
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
   const alt = await svgAlt(pane, /by model/)
   expect(alt).toMatch(/today by model: Sonnet 5\.5 300, Opus 5\.5 2\./)
-  expect(alt).toMatch(/all time: Sonnet 5\.5 300, Opus 5\.5 2, before Nov 3 5,000/)
+  expect(alt).toMatch(/all time: Sonnet 5\.5 300, Opus 5\.5 2, earlier 5,000/)
   await pane.unmount()
 
   const term = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
   expect((await term.find({ type: 'Text', text: /lines today/ }))?.text).toMatch(/Opus 5\.5 2/)
   await term.unmount()
+})
+
+test('a session from before model tracking gives its lines so far to the model it runs now', async ($, on) => {
+  stubs(on)
+  const day = new Date(T0)
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  const m = memory(on, { 's-me': { t: T0 - 1000, w: T0 - 2000, proj: 'x', life: c(977), days: { [key]: c(977) }, hours: { d: key, v: [] }, owl: false, exts: [] } })
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
+
+  expect((m.get('s-me') as any).ml).toEqual({ 'Opus 5.5': 977 })
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await svgAlt(pane, /by model/)).toMatch(/today by model: Opus 5\.5 977\./)
+  await pane.unmount()
 })

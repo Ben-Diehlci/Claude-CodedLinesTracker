@@ -106,7 +106,7 @@ const sections: Record<string, Section> = {
     return (
       <Box flexDirection="column">
         {line('lines today', v.today.code, v.modelsToday, v.earlierToday, 'earlier')}
-        {line('all time', v.life.code, v.modelsLife, v.earlierLife, 'before Nov 3')}
+        {line('all time', v.life.code, v.modelsLife, v.earlierLife, 'earlier')}
       </Box>
     )
   },

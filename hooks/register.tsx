@@ -373,12 +373,25 @@ const syncTotals = async ($: any, now: number) => {
   if (JSON.stringify(cur) !== JSON.stringify(next)) await update($, totals, () => next)
 }
 
+/**
+ * A session key from before per-model tracking: its lines so far go to the model the chat runs now
+ * (Ben rarely switches models inside one chat), so the rings fill at once instead of starting grey.
+ */
+const seedModels = async ($: any, own: Own, now: number): Promise<Own> => {
+  if (own.ml) return own
+  const model = modelName(await sessionModel($))
+  const d = dayKey(now)
+  const today = own.days[d]?.code ?? 0
+
+  return { ...own, ml: own.life.code > 0 ? { [model]: own.life.code } : {}, mt: { d, v: today > 0 ? { [model]: today } : {} } }
+}
+
 // Every few seconds: show other sessions' lines, keep this session's key alive, redraw on a timed change.
 const refresh = async ($: any) => {
   const now = await $.clock.now()
   const key = PREFIX + (await $.session.id())
-  if (ownCache && (++beats % 6 === 0 || !((await $.store.keys()) as string[]).includes(key))) {
-    ownCache = { ...ownCache, t: now }
+  if (ownCache && (++beats % 6 === 0 || !ownCache.ml || !((await $.store.keys()) as string[]).includes(key))) {
+    ownCache = { ...(await seedModels($, ownCache, now)), t: now }
     await $.store.set(key, ownCache)
   }
   await syncTotals($, now)
@@ -511,7 +524,7 @@ export const register: Register = on => {
     const self = PREFIX + (await $.session.id())
     await fold($, self, now)
     ownCache = ((await $.store.get(self)) as Own | undefined) ?? newOwn(now)
-    ownCache = { ...ownCache, t: now, proj: project }
+    ownCache = { ...(await seedModels($, ownCache, now)), t: now, proj: project }
     await $.store.set(self, ownCache)
     restored = false
     await restore($)
