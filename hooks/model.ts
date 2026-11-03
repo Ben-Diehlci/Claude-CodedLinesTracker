@@ -40,6 +40,7 @@ export const defaultPrefs = (): Prefs => ({
   outfit: 'auto',
   goal: DEFAULT_GOAL,
   bg: 'none',
+  lookOpen: false,
   sections: Object.fromEntries(SECTIONS.map(s => [s.id, !('off' in s)])),
 })
 

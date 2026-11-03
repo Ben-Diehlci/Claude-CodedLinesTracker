@@ -264,16 +264,24 @@ test('a chosen pane background fills the pane and fixes the drawings to light or
   expect((m.get('prefs') as any).bg).toBe('slate')
 
   const dark = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
-  // The fill is a card behind the sections; the controls below it stay on the app's own background.
-  const root = (await dark.drawn()) as any
-  expect(root.props.backgroundColor).toBeUndefined()
-  expect(root.children[0].props.backgroundColor).toBe('#30302E')
-  expect(JSON.stringify(root.children[0])).not.toMatch(/"Button"|"Select"/)
+  // The fill covers the whole pane; the settings hide behind one highlighted Settings button.
+  const fill = ((await dark.drawn()) as any).children[0]
+  expect(fill.props.backgroundColor).toBe('#30302E')
   const src = (await dark.find({ type: 'Svg' }))?.props.source as string
   expect(src).not.toMatch(/prefers-color-scheme/)
   expect(src).toMatch(/\.fg\{fill:#F5F4EE\}/)
-  expect((await dark.find({ type: 'Text', text: /^Sections$/ }))?.props.dimColor).toBe(true)
+  expect(await buttons(dark)).toEqual(['Settings'])
+  expect((await dark.find({ type: 'Button' }))?.props.variant).toBe('primary')
+  expect(await dark.findAll({ type: 'Select' })).toHaveLength(0)
+
+  // Opened, the settings show below the fill, on the app's own background.
+  await dark.press({ key: 'settings' })
   expect(await buttons(dark)).toContain('Heat map: on ')
+  expect(await buttons(dark)).toContain('Hide settings')
+  const tree = (await dark.drawn()) as any
+  expect(JSON.stringify(tree.children[0])).not.toMatch(/"Select"/)
+  expect(JSON.stringify(tree.children[1])).toMatch(/"Select"/)
+  expect((await dark.find({ type: 'Text', text: /^Sections$/ }))?.props.dimColor).toBe(true)
   await dark.unmount()
 
   // The terminal keeps its own background.

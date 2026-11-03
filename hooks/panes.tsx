@@ -263,8 +263,6 @@ export const renderPane = (ctx: PaneCtx) => {
   const bg = ctx.v.surface === 'terminal' ? backgroundOf('none') : backgroundOf(ctx.p.bg)
   setMode(bg.mode)
   const c: PaneCtx = { ...ctx, ink: inkFor(bg.mode) }
-  // The fill sits behind the sections only, as a card: the controls stay on the app's own background,
-  // where the app's buttons and menus (whose colors a plugin cannot set) always read.
   const body = on.map(s => {
     const draw = c.v.surface !== 'terminal' && Svg ? PANE_SVG[s.id] : undefined
     if (!draw) {
@@ -282,17 +280,35 @@ export const renderPane = (ctx: PaneCtx) => {
       </Box>
     )
   })
+  const controls = look({ ...ctx, ink: inkFor('auto') })
+  if (!bg.color) {
+    return (
+      <Box flexDirection="column" paddingX={1}>
+        {body}
+        {controls}
+      </Box>
+    )
+  }
+
+  // A filled pane: the color fills it all, and the settings hide behind one Settings button (the app's
+  // highlighted button reads on any fill). Opened, they show below the fill, on the app's own background,
+  // where the app's buttons and menus (whose colors a plugin cannot set) read.
+  const { Button } = ctx.kit.ui
+  const open = ctx.p.lookOpen
 
   return (
-    <Box flexDirection="column" paddingX={1}>
-      {bg.color ? (
-        <Box key="card" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1} marginBottom={1}>
-          {body}
+    <Box flexDirection="column">
+      <Box key="fill" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1}>
+        {body}
+        <Box marginBottom={1}>
+          <Button key="settings" variant="primary" label={open ? 'Hide settings' : 'Settings'} onPress={() => ctx.set({ lookOpen: !open })} />
         </Box>
-      ) : (
-        body
-      )}
-      {look({ ...ctx, ink: inkFor('auto') })}
+      </Box>
+      {open ? (
+        <Box key="settings-area" flexDirection="column" paddingX={1} paddingTop={1}>
+          {controls}
+        </Box>
+      ) : null}
     </Box>
   )
 }
