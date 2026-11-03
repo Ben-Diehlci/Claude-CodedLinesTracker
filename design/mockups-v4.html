@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stage Scenes</title>
+<style>
+  :root, [data-theme="light"] {
+    --bg: #FAF9F5; --panel: #F2F1EC; --fg: #1F1E1D; --muted: #6B6A64; --hair: rgba(31,30,29,.18); --tint: rgba(31,30,29,.05);
+    --clay: #C6613F; --sand: #A98049; --flash: #4F8A3C; --eye: #1F1E1D; --gold: #C9921F; --pink: #D45A8A; --blue: #5565C8;
+    --glyph: #8E8C84; --moon: #C9B98A; --night: #262624;
+  }
+  [data-theme="dark"] {
+    --bg: #262624; --panel: #30302E; --fg: #F5F4EE; --muted: #9C9A92; --hair: rgba(245,244,238,.2); --tint: rgba(245,244,238,.05);
+    --clay: #D97757; --sand: #E3C79A; --flash: #7FB069; --eye: #1F1E1D; --gold: #E8B84A; --pink: #E86A9A; --blue: #7A8CE0;
+    --glyph: #8E8C84; --moon: #E9DDB4; --night: #1A1A19;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, system-ui, sans-serif; padding: 24px 16px 64px; }
+  .wrap { max-width: 1020px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 13px; margin: 30px 0 8px; color: var(--clay); text-transform: uppercase; letter-spacing: .1em; }
+  p.note { color: var(--muted); margin: 0 0 12px; max-width: 760px; }
+  .controls { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; padding: 10px 0; background: var(--bg); }
+  button { background: var(--panel); color: var(--fg); border: 1px solid var(--hair); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .tile { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; }
+  .tile b { font-size: 13px; }
+  .tile .n { color: var(--muted); font-weight: 400; margin-right: 4px; }
+  .tile .new { font-size: 11px; color: var(--flash); margin-left: 6px; }
+  .tile .d { color: var(--muted); font-size: 12px; margin: 2px 0 8px; min-height: 2.9em; }
+  svg { display: block; width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>More things happening on Clawd's stage</h1>
+<p class="note">Each tile is one scene for the strip in the band. In the plugin, one scene plays per 30 seconds, picked at random, so the strip keeps changing. Tell me the numbers to keep (or drop). Everything is local drawing, no tokens.</p>
+<div class="controls"><button id="bTheme">Light / dark</button></div>
+
+<h2>While Claude is idle</h2>
+<div class="grid" id="idle"></div>
+<h2>While Claude is working</h2>
+<div class="grid" id="work"></div>
+<h2>Big Clawd's new tricks</h2>
+<div class="grid" id="big"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const W = 320, H = 38, FLOOR = H - 3;
+
+// ---- pixel pieces ----
+const BODY = ['..OOOOOOOO..','..OKOOOOKO..','OOOKOOOOKOOO','..OOOOOOOO..','..O.O..O.O..','..O.O..O.O..'];
+function crab(st, px, ox, oy) {
+  const m = BODY.map(r => r.split(''));
+  if (st.legs) m[5] = '...O.O..O.O.'.split('');
+  if (st.blink) { m[1][3] = 'O'; m[1][8] = 'O'; }
+  if (st.look) { m[1][3] = 'O'; m[2][3] = 'O'; m[1][8] = 'O'; m[2][8] = 'O'; m[1][3 + st.look] = 'K'; m[2][3 + st.look] = 'K'; m[1][8 + st.look] = 'K'; m[2][8 + st.look] = 'K'; }
+  if (st.armL || st.arms) { m[2][0] = m[2][1] = '.'; m[1][0] = m[1][1] = 'O'; }
+  if (st.armR || st.arms) { m[2][10] = m[2][11] = '.'; m[1][10] = m[1][11] = 'O'; }
+  if (st.flip) m.forEach(r => r.reverse());
+  let o = '';
+  m.forEach((row, y) => row.forEach((c, x) => {
+    if (c !== '.') o += `<rect x="${ox + x * px}" y="${oy + y * px}" width="${px}" height="${px}" fill="${c === 'K' ? 'var(--eye)' : 'var(--clay)'}"/>`;
+  }));
+  return o;
+}
+const mini = (st, x, dy = 0) => crab(st, 2, x, FLOOR - 12 + dy);
+const GLYPHS = {
+  '{': ['.11','.1.','11.','.1.','.11'], '}': ['11.','.1.','.11','.1.','11.'], ';': ['...','.1.','...','.1.','1..'],
+  '<': ['..1','.1.','1..','.1.','..1'], '>': ['1..','.1.','..1','.1.','1..'], '/': ['..1','..1','.1.','1..','1..'],
+  '=': ['...','111','...','111','...'], '(': ['.1.','1..','1..','1..','.1.'], ')': ['.1.','..1','..1','..1','.1.'],
+};
+const GK = Object.keys(GLYPHS);
+function glyph(ch, x, y, px, color) {
+  let o = '';
+  GLYPHS[ch].forEach((r, j) => [...r].forEach((c, i) => { if (c === '1') o += `<rect x="${x + i * px}" y="${y + j * px}" width="${px}" height="${px}" fill="${color}"/>`; }));
+  return o;
+}
+const R = (x, y, w, h, f, extra = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}" ${extra}/>`;
+const T = (x, y, s, f = 'var(--muted)', size = 9) => `<text x="${x}" y="${y}" fill="${f}" font-size="${size}" font-family="system-ui" font-weight="700">${s}</text>`;
+const tri = t => 1 - Math.abs(1 - 2 * (t % 1));
+const pile = () => [0, 1, 2, 3].map(i => R(W - 14 - Math.floor(i / 3) * 8, FLOOR - (i % 3 + 1) * 8, 7, 7, 'var(--clay)', 'rx="1"')).join('');
+const frame = (night) => `<rect x=".5" y=".5" width="${W - 1}" height="${H - 1}" rx="8" fill="${night ? 'var(--tint)' : 'none'}" stroke="var(--hair)"/>` + R(6, FLOOR, W - 12, 1, 'var(--hair)');
+
+// ---- idle scenes: t in seconds ----
+const IDLE = [
+  { name: 'Bug chase', old: true, d: 'A bug wanders in, mini Clawd catches it ("!") and walks back.', f: t => {
+    const p = t % 8; let o = pile();
+    const bx = 40 + Math.min(p, 5) * 28;
+    if (p < 5.2) o += R(bx, FLOOR - 8, 10, 5, 'var(--fg)') + R(bx + 2, FLOOR - 10, 6, 2, 'var(--fg)') + R(bx + (Math.floor(t * 7) % 2 ? 0 : 2), FLOOR - 3, 2, 3, 'var(--fg)') + R(bx + (Math.floor(t * 7) % 2 ? 8 : 6), FLOOR - 3, 2, 3, 'var(--fg)');
+    if (p > 3.5 && p < 5.2) o += mini({ legs: Math.floor(t * 8) % 2 }, -24 + (p - 3.5) / 1.7 * (bx - 2));
+    if (p >= 5.2 && p < 5.9) o += mini({ arms: 1 }, bx - 26) + T(bx + 2, FLOOR - 14, '!', 'var(--sand)', 11);
+    if (p >= 5.9) o += mini({ legs: Math.floor(t * 8) % 2, flip: 1 }, bx - 26 - (p - 5.9) / 2.1 * (bx + 2));
+    return o; } },
+  { name: 'Nap', old: true, d: 'Mini Clawd naps by the pile, z\'s drifting up.', f: t => {
+    const z = (t % 1.6) / 1.6;
+    return pile() + mini({ blink: 1 }, W - 60, 2) + `<text x="${W - 34 + z * 4}" y="${FLOOR - 14 - z * 7}" fill="var(--muted)" font-size="8" opacity="${1 - z}">z</text>`; } },
+  { name: 'Builder', d: 'Mini Clawd carries a block over on his head and stacks it on the pile.', f: t => {
+    const p = t % 7; let o = pile();
+    const goX = 30 + Math.min(p, 3.5) / 3.5 * (W - 104);
+    if (p < 3.5) o += mini({ arms: 1, legs: Math.floor(t * 8) % 2 }, goX) + R(goX + 8, FLOOR - 21, 7, 7, 'var(--gold)', 'rx="1"');
+    else if (p < 4.2) { const k = (p - 3.5) / 0.7; o += mini({ arms: 1 }, W - 74) + R(W - 66 + k * 44, FLOOR - 21 + k * 3 - Math.sin(k * Math.PI) * 6, 7, 7, 'var(--gold)', 'rx="1"'); }
+    else { o += R(W - 22, FLOOR - 16, 7, 7, 'var(--gold)', 'rx="1"') + mini({ legs: Math.floor(t * 8) % 2, flip: 1 }, W - 74 - (p - 4.2) / 2.8 * (W - 60)); }
+    return o; } },
+  { name: 'Butterfly', d: 'A butterfly flutters across; mini Clawd hops trying to catch it.', f: t => {
+    const p = t % 7; const bx = 10 + p / 7 * (W - 20), by = 10 + Math.sin(t * 3) * 5, flap = Math.floor(t * 8) % 2;
+    const mx = W / 2 - 20, near = Math.abs(bx - mx - 12) < 50;
+    let o = pile() + mini({ arms: near, look: bx < mx ? -1 : 1 }, mx, near ? -Math.abs(Math.sin(t * 7)) * 6 : 0);
+    o += R(bx, by, 1, 4, 'var(--fg)') + R(bx - (flap ? 4 : 3), by - (flap ? 2 : 0), flap ? 4 : 3, flap ? 3 : 4, 'var(--pink)') + R(bx + 1, by - (flap ? 2 : 0), flap ? 4 : 3, flap ? 3 : 4, 'var(--pink)');
+    return o; } },
+  { name: 'Juggling', d: 'Mini Clawd juggles three curly braces.', f: t => {
+    const cx = W / 2 - 20; let o = pile() + mini({ arms: Math.floor(t * 4) % 2 ? 1 : 0, armL: 1 }, cx);
+    for (let i = 0; i < 3; i++) { const a = (t / 1.4 + i / 3) % 1; o += glyph(GK[i * 3], cx + 4 + a * 18, 3 + Math.abs(Math.cos(a * Math.PI)) * 0 + (1 - Math.sin(a * Math.PI)) * 12, 1.5, 'var(--sand)'); }
+    return o; } },
+  { name: 'Paper airplane', d: 'A paper airplane glides across the strip and he waves at it.', f: t => {
+    const p = t % 6, x = -20 + p / 6 * (W + 40), y = 8 + Math.sin(t * 2) * 3;
+    return pile() + mini({ armR: Math.floor(t * 4) % 2, look: x < W * .55 ? -1 : 1 }, W * .55) + `<path d="M${x} ${y} l14 4 l-14 4 l3 -4 z" fill="var(--fg)" opacity=".75"/>`; } },
+  { name: 'Sweeping', d: 'He sweeps the floor; little dust puffs rise and fade.', f: t => {
+    const x = 60 + Math.sin(t * 1.4) * 50, dir = Math.cos(t * 1.4) > 0 ? 1 : -1, bx = dir > 0 ? x + 26 : x - 4;
+    let o = pile() + mini({ legs: Math.floor(t * 6) % 2, flip: dir < 0, armR: dir > 0, armL: dir < 0 }, x);
+    o += `<line x1="${bx}" y1="${FLOOR - 12}" x2="${bx + dir * 6}" y2="${FLOOR - 1}" stroke="var(--sand)" stroke-width="1.5"/>` + R(bx + dir * 6 - 3, FLOOR - 3, 6, 3, 'var(--sand)');
+    for (let i = 0; i < 3; i++) { const k = (t * 1.5 + i / 3) % 1; o += `<circle cx="${bx + dir * (8 + i * 3)}" cy="${FLOOR - 2 - k * 8}" r="${1 + k * 1.5}" fill="var(--glyph)" opacity="${.7 - k * .7}"/>`; }
+    return o; } },
+  { name: 'Coffee break', d: 'A mug with rising steam; every few seconds he takes a sip.', f: t => {
+    const mx = W / 2 - 20, sip = t % 4 > 3; let o = pile() + mini({ armR: sip, blink: sip }, mx);
+    const ux = sip ? mx + 20 : mx + 30, uy = sip ? FLOOR - 16 : FLOOR - 8;
+    o += R(ux, uy, 7, 8, 'var(--fg)', 'rx="1"') + R(ux + 7, uy + 2, 2, 4, 'var(--fg)');
+    if (!sip) for (let i = 0; i < 3; i++) { const k = (t * .8 + i / 3) % 1; o += R(ux + 2 + Math.sin(k * 6 + i) * 2, uy - 3 - k * 10, 1.5, 3, 'var(--glyph)', `opacity="${1 - k}"`); }
+    return o; } },
+  { name: 'Ball', d: 'A pixel ball bounces off the wall; he kicks it back.', f: t => {
+    const k = tri(t / 3), bx = 56 + k * (W - 140), by = FLOOR - 5 - Math.abs(Math.sin(t * Math.PI * 1.3)) * 14, kick = k < .08;
+    return pile() + mini({ legs: kick }, 26) + `<circle cx="${bx}" cy="${by}" r="4" fill="var(--blue)"/>` + R(W - 80, FLOOR - 26, 2, 26, 'var(--hair)'); } },
+  { name: 'Night extras', d: 'After 10 pm: moon, stars, a shooting star now and then, a firefly; he dozes.', night: true, f: t => {
+    let o = `<circle cx="${W - 70}" cy="10" r="5" fill="var(--moon)"/><circle cx="${W - 68}" cy="9" r="4.2" fill="var(--bg)"/>`;
+    for (let i = 0; i < 7; i++) if ((Math.floor(t * 1.5) + i) % 3) o += R(30 + i * 37, 4 + (i * 7) % 10, 1.5, 1.5, 'var(--moon)');
+    const s = t % 5; if (s < .8) { const sx = 60 + s * 120, sy = 4 + s * 12; o += `<line x1="${sx}" y1="${sy}" x2="${sx - 16}" y2="${sy - 5}" stroke="var(--moon)" stroke-width="1.5" opacity="${1 - s}"/>`; }
+    const fx = 120 + Math.sin(t * .7) * 50, fy = 16 + Math.sin(t * 1.9) * 6; o += `<circle cx="${fx}" cy="${fy}" r="${Math.floor(t * 3) % 2 ? 2 : 1}" fill="var(--gold)"/>`;
+    const z = (t % 1.6) / 1.6;
+    return o + pile() + mini({ blink: 1 }, W - 60, 2) + `<text x="${W - 34 + z * 4}" y="${FLOOR - 14 - z * 7}" fill="var(--muted)" font-size="8" opacity="${1 - z}">z</text>`; } },
+];
+
+// ---- working scenes ----
+const WORK = [
+  { name: 'Code belt', old: true, d: 'Code symbols ride a belt into a blinking cursor.', f: t => {
+    let o = ''; const off = (t * 40) % 13;
+    for (let x = 31 - off; x < W - 40; x += 13) o += glyph(GK[Math.abs(Math.floor((x + t * 40) / 13) * 7 + 3) % 9], x, 12, 2, 'var(--glyph)');
+    if (Math.floor(t * 2.2) % 2) o += R(9, 10, 3, 16, 'var(--clay)');
+    return o + pile(); } },
+  { name: 'Code rain', d: 'Symbols fall down the strip, Matrix style; the lowest one glows.', f: t => {
+    let o = '';
+    for (let c = 0; c < 18; c++) { const x = 14 + c * 15, sp = 14 + (c * 7) % 9, y = ((t * sp + c * 11) % 48) - 12;
+      o += glyph(GK[(c * 5 + Math.floor(t * 2)) % 9], x, y, 1.5, 'var(--glyph)') + glyph(GK[(c * 5 + 3) % 9], x, y - 10, 1.5, 'var(--glyph)').replace(/fill="var\(--glyph\)"/g, 'fill="var(--glyph)" opacity=".45"') + glyph(GK[(c * 3) % 9], x, y + 10, 1.5, 'var(--clay)'); }
+    return o + pile(); } },
+  { name: 'Editor', d: 'Tiny lines of "code" type out and scroll up, like a file being written.', f: t => {
+    let o = R(10, 4, 3, H - 8, 'var(--hair)'); const sc = (t * 6) % 8;
+    for (let i = 0; i < 6; i++) { const n = Math.floor(t * 6 / 8) + i, y = 6 + i * 8 - sc; if (y < 3 || y > H - 8) continue;
+      const ind = ((n * 7) % 3) * 8, w = 30 + (n * 53) % 120, typing = i === 3 ? Math.min(1, (sc / 8) * 1.4) : i < 3 ? 1 : 0;
+      o += R(18 + ind, y, w * typing, 3, (n % 4 === 0) ? 'var(--sand)' : 'var(--glyph)', 'rx="1"');
+      if (i === 3 && Math.floor(t * 3) % 2) o += R(18 + ind + w * typing + 2, y - 2, 2, 7, 'var(--clay)'); }
+    return o + pile(); } },
+  { name: 'Treadmill', d: 'Mini Clawd runs inside a hamster wheel, spokes spinning.', f: t => {
+    const cx = W / 2 - 20, cy = H / 2, r = 16; let o = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--sand)" stroke-width="1.5"/>`;
+    for (let i = 0; i < 6; i++) { const a = t * 4 + i * Math.PI / 3; o += `<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(a) * r}" y2="${cy + Math.sin(a) * r}" stroke="var(--hair)"/>`; }
+    return o + crab({ legs: Math.floor(t * 10) % 2 }, 1.6, cx - 10, cy + r - 11) + R(cx - 2, cy + r, 4, FLOOR - cy - r, 'var(--sand)') + pile(); } },
+  { name: 'Build bar', d: 'A progress bar fills in steps with a spinner and "building 62%".', f: t => {
+    const p = (t % 6) / 6, bw = W - 150, sp = '|/-\\'[Math.floor(t * 8) % 4];
+    let o = R(16, 13, bw, 10, 'none', 'stroke="var(--hair)" rx="3"');
+    for (let i = 0; i < Math.floor(p * 20); i++) o += R(18 + i * (bw - 4) / 20, 15, (bw - 4) / 20 - 1.5, 6, 'var(--clay)', 'rx="1"');
+    return o + T(bw + 24, 22, `${sp} building ${Math.round(p * 100)}%`, 'var(--muted)', 10) + pile(); } },
+  { name: 'Packets', d: 'Little envelopes zip between two tiny screens.', f: t => {
+    const scr = x => R(x, 9, 18, 14, 'none', 'stroke="var(--fg)" rx="2"') + R(x + 3, 12, 12, 2, 'var(--glyph)') + R(x + 3, 16, 8, 2, 'var(--glyph)') + R(x + 7, 23, 4, 4, 'var(--fg)');
+    let o = scr(14) + scr(W - 80);
+    for (let i = 0; i < 3; i++) { const k = (t / 1.8 + i / 3) % 1, back = i === 1, x = back ? W - 86 - k * (W - 116) : 36 + k * (W - 122), y = 14 - Math.sin(k * Math.PI) * 9;
+      o += R(x, y, 9, 6, back ? 'var(--sand)' : 'var(--clay)', 'rx="1"') + `<path d="M${x} ${y} l4.5 3.5 l4.5 -3.5" fill="none" stroke="var(--bg)" stroke-width="1"/>`; }
+    return o + pile(); } },
+];
+
+// ---- big Clawd tricks (4 px squares) ----
+const BIG = [
+  { name: 'Spin', d: 'He turns around twice, fast.', f: t => { const p = t % 3; return crab({ flip: p < 1.2 && Math.floor(p * 6) % 2, legs: p < 1.2 && Math.floor(p * 10) % 2 }, 4, W / 2 - 24, 4); } },
+  { name: 'Peek', d: 'He ducks behind the edge, then peeks out looking left and right.', f: t => {
+    const p = t % 4, dy = p < .5 ? p * 32 : p < 3 ? 16 : 16 - (p - 3) * 16; const look = p > 1 && p < 3 ? (Math.floor(p * 1.5) % 2 ? 1 : -1) : 0;
+    return `<clipPath id="pk"><rect x="0" y="0" width="${W}" height="30"/></clipPath><g clip-path="url(#pk)">${crab({ look }, 4, W / 2 - 24, 4 + dy)}</g>` + R(W / 2 - 40, 30, 80, 2, 'var(--hair)'); } },
+  { name: 'Sneeze', d: 'He squashes down, then "achoo!" with a little puff.', f: t => {
+    const p = t % 3.5, squash = p > 1 && p < 1.6, pop = p >= 1.6 && p < 2.4;
+    let o = `<g transform="translate(${W / 2 - 24},${squash ? 8 : pop ? 0 : 4}) scale(1,${squash ? .8 : 1})">${crab({ blink: squash || pop, arms: pop }, 4, 0, 0)}</g>`;
+    if (pop) o += T(W / 2 + 26, 10, 'achoo!', 'var(--sand)', 10) + `<circle cx="${W / 2 + 34 + (p - 1.6) * 20}" cy="20" r="${3 + (p - 1.6) * 6}" fill="var(--glyph)" opacity="${.6 - (p - 1.6) * .7}"/>`;
+    return o; } },
+];
+
+// ---- tiles ----
+const tiles = [];
+function build(list, el, start, h = H, big = false) {
+  list.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'tile';
+    d.innerHTML = `<b><span class="n">${start + i}.</span>${s.name}</b>${s.old ? '' : '<span class="new">new</span>'}<div class="d">${s.d}</div><svg viewBox="0 0 ${W} ${h}" shape-rendering="crispEdges"></svg>`;
+    el.appendChild(d); tiles.push({ s, svg: d.querySelector('svg'), big });
+  });
+}
+build(IDLE, $('idle'), 1);
+build(WORK, $('work'), IDLE.length + 1);
+build(BIG, $('big'), IDLE.length + WORK.length + 1);
+function tick(ms) {
+  const t = ms / 1000;
+  for (const { s, svg, big } of tiles) svg.innerHTML = (big ? '' : frame(s.night)) + s.f(t);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+$('bTheme').onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; };
+</script>
+</body>
+</html>
