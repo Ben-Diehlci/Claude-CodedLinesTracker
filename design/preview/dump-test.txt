@@ -29,4 +29,11 @@ test('dump', async ($, on) => {
     console.log('@@pane-' + bg + '-' + cols + '@@' + JSON.stringify(await p.drawn()) + '@@END@@')
     await p.unmount()
   }
+  // A busy day (past 3,000 lines today): gold columns on the card band's pile.
+  await $.tool.call({ tool: 'Write', file_path: '/a/big.ts', content: Array.from({ length: 2300 }, (_, i) => `const w${i} = ${i}`).join('\n') })
+  await clock.advance(5000)
+  await $.command.run({ command: 'linecount', args: 'style card' })
+  const busy = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
+  console.log('@@band-card-busy@@' + JSON.stringify(await busy.drawn()) + '@@END@@')
+  await busy.unmount()
 })
