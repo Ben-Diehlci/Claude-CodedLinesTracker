@@ -49,6 +49,11 @@ export type Pose = {
   heart?: boolean
   bang?: boolean
   note?: boolean
+  /** Facing the other way (the spin). */
+  flip?: boolean
+  /** Ducked this many pixels down, below the canvas's edge (the peek). */
+  duck?: number
+  sneeze?: boolean
 }
 
 // O body, K eye, . empty (P pink, Y gold, B blue, W white are hats).
@@ -106,13 +111,14 @@ export const grid = (st: Pose, outfit: Outfit = 'none'): string[][] => {
   const h = canvasH(outfit)
   const g = Array.from({ length: h }, () => Array<string>(W).fill('.'))
   const dx = 1 + (st.dx ?? 0)
-  const dy = st.hop ? 0 : st.sit ? 2 : 1
+  const dy = (st.hop ? 0 : st.sit ? 2 : 1) + (st.duck ?? 0)
   sprite(st, outfit).forEach((row, y) =>
     row.forEach((c, x) => {
-      if (c !== '.') g[y + dy][x + dx] = c
+      if (c !== '.' && y + dy < h) g[y + dy][x + dx] = c
     }),
   )
   if (st.kb && !st.sit) for (let x = 3; x < 11; x++) g[h - 1][x + dx - 1] = 'G'
+  if (st.flip) g.forEach(r => r.reverse())
 
   return g
 }
@@ -127,7 +133,9 @@ export const mark = (st: Pose): { ch: string; color: number } | undefined =>
         ? { ch: '!', color: SAND }
         : st.note
           ? { ch: '♪', color: SAND }
-          : undefined
+          : st.sneeze
+            ? { ch: '*', color: SAND }
+            : undefined
 
 /** Tricks from the mockup: ms long, and the pose t ms in. */
 export const TRICKS: Record<string, { ms: number; pose: (t: number) => Pose }> = {
@@ -148,6 +156,18 @@ export const TRICKS: Record<string, { ms: number; pose: (t: number) => Pose }> =
   stretch: {
     ms: 1800,
     pose: t => ({ armsUp: t > 300 && t < 1500, hop: t > 600 && t < 1200, blink: t > 300 && t < 1500 }),
+  },
+  spin: { ms: 1400, pose: t => ({ flip: Math.floor(t / 170) % 2 === 1, legs: Math.floor(t / 100) % 2 === 1 }) },
+  peek: {
+    ms: 3200,
+    pose: t => ({
+      duck: t < 400 ? Math.floor(t / 100) + 1 : t < 2800 ? 4 : Math.max(0, 4 - Math.floor((t - 2800) / 100)),
+      eyeDx: t > 900 && t < 2600 ? (Math.floor(t / 500) % 2 ? 1 : -1) : 0,
+    }),
+  },
+  sneeze: {
+    ms: 2000,
+    pose: t => (t < 700 ? { sit: true, blink: true } : t < 1400 ? { armsUp: true, blink: true, hop: t < 900, sneeze: true } : {}),
   },
   scuttle: {
     ms: 2200,

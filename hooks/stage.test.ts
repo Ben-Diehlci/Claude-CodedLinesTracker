@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { IDLE_SCENES, WORK_SCENES, sceneName, sceneSvg } from './scenes'
 import { IDLE_MS, pileOf, stageCells, stageSvg } from './stage'
 
 // 2 pm (daytime), and the start of the idle loop it falls in.
@@ -32,16 +33,37 @@ test('a block per 100 lines today, and each full 1,000 as one gold column, with 
   expect(stageSvg(view({ today: code(312) }), 400)).not.toMatch(/1,000 lines/)
 })
 
-test('working runs the code belt; idle brings the bug and mini Clawd; night puts out the moon', () => {
-  const work = stageSvg(view({ working: true }), 400)
-  expect(work).toMatch(/clip-path="url\(#belt\)"/)
-  expect(work).not.toMatch(/'!'|>!</)
+test('every scene draws in a normal and a narrow strip, and stays small', () => {
+  for (const name of [...IDLE_SCENES, ...WORK_SCENES]) {
+    for (const end of [120, 420]) {
+      const s = sceneSvg(name, end, NOON_LOOP + 7000)
+      expect(s.length).toBeGreaterThan(50)
+      expect(s).toMatch(/<animate/)
+      expect(s.length).toBeLessThan(60_000)
+    }
+  }
+})
+
+test('one scene per 30 s window: idle, working, night and asleep each pick from their own set', () => {
+  const at = (k: number, o: Record<string, boolean> = {}) =>
+    sceneName({ now: NOON_LOOP + k * IDLE_MS + 1000, working: false, night: false, asleep: false, ...o })
+  const day = Array.from({ length: 40 }, (_, k) => at(k))
+  expect(new Set(day).size).toBeGreaterThan(5) // the strip keeps changing
+  day.slice(1).forEach((n, i) => expect(n).not.toBe(day[i])) // never the same twice in a row
+  expect(day).not.toContain('night')
+  expect(WORK_SCENES).toContain(at(3, { working: true }))
+  expect(at(3, { night: true })).toBe('night')
+  expect(at(3, { asleep: true })).toBe('nap')
+  // A redraw inside one window keeps the scene.
+  expect(sceneName({ now: NOON_LOOP + 2000, working: false, night: false, asleep: false })).toBe(sceneName({ now: NOON_LOOP + 29_000, working: false, night: false, asleep: false }))
+})
+
+test('the stage shows the picked scene; night puts out the moon', () => {
   const idle = stageSvg(view(), 400)
-  expect(idle).toMatch(/>!</) // mini Clawd catches the bug
-  expect(idle).toMatch(/>z</) // and naps later in the loop
+  expect(idle).toMatch(/visibility/)
   const night = stageSvg(view({ now: new Date(2026, 10, 3, 23, 0, 0).getTime() }), 400)
   expect(night).toMatch(/<path d="M/)
-  expect(night).not.toMatch(/>!</)
+  expect(night).toMatch(/>z</)
 })
 
 test('a write drops the new blocks in and zips the +N chip; a milestone sets off fireworks', () => {

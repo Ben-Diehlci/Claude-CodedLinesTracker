@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { clawdBody, LOOP_MS } from './clawd'
+import { clawdBody, grid, LOOP_MS, mark, TRICKS } from './clawd'
 import { badgesOf, bestDay, heat, levelOf, mergePrefs, modelName, pickOutfit, streaks } from './model'
 
 const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
@@ -70,4 +70,14 @@ test('model ids read as short names', () => {
   expect(modelName('sonnet')).toBe('Sonnet')
   expect(modelName('claude-fable-5-1[1m]')).toBe('Fable 5.1')
   expect(modelName('')).toBe('Unknown')
+})
+
+test('new tricks: spin turns Clawd around, peek ducks him below the edge, sneeze shows a puff', () => {
+  const left = grid({}).map(r => r.join(''))
+  const spun = grid({ flip: true }).map(r => r.join(''))
+  expect(spun).toEqual(left.map(r => [...r].reverse().join('')))
+  const ducked = grid({ duck: 4 })
+  expect(ducked.slice(0, 5).every(r => r.every(c => c === '.'))).toBe(true)
+  expect(mark({ sneeze: true })?.ch).toBe('*')
+  for (const t of ['spin', 'peek', 'sneeze']) expect(Object.keys(TRICKS)).toContain(t)
 })

@@ -15,7 +15,7 @@ import {
 } from './clawd'
 import type { Outfit } from './clawd'
 import { countLines, extOf } from './count'
-import { stageCells, stageLive } from './stage'
+import { IDLE_MS, stageCells, stageLive } from './stage'
 import type { StageLive } from './stage'
 import {
   BACKGROUNDS,
@@ -250,12 +250,14 @@ let lastActive = 0
 let flashShown = false
 let mileShown = false
 let asleepShown = false
+let winShown = 0
 let lastCells = ''
 let ownCache: Own | undefined
 let beats = 0
 let project = 'session'
 let curOutfit: Outfit = 'none'
-const mounted: Record<'band' | 'pane' | 'stage', boolean> = { band: false, pane: false, stage: false }
+// band/pane: a terminal Raster Clawd to repaint; stage: the terminal stage Raster; scene: a desktop card band with the stage.
+const mounted: Record<'band' | 'pane' | 'stage' | 'scene', boolean> = { band: false, pane: false, stage: false, scene: false }
 let stage: { live: StageLive; cols: number; cells: string } | undefined
 let bandId = 'band'
 
@@ -400,7 +402,10 @@ const refresh = async ($: any) => {
   const p = await read($, pulse)
   const flashing = now - p.at < FLASH_MS
   const miling = p.mile > 0 && now - p.mile < MILE_MS
-  if (asleep !== asleepShown || flashing !== flashShown || miling !== mileShown) {
+  // A new 30 s window brings the stage's next scene (the band Svg only changes when it is redrawn).
+  const win = Math.floor(now / IDLE_MS)
+  if (asleep !== asleepShown || flashing !== flashShown || miling !== mileShown || (mounted.scene && win !== winShown)) {
+    winShown = win
     asleepShown = asleep
     flashShown = flashing
     mileShown = miling
@@ -634,6 +639,7 @@ export const register: Register = on => {
     if (!p.status || e.props.hasSurvey) {
       mounted.band = false
       mounted.stage = false
+      mounted.scene = false
 
       return next(e)
     }
@@ -646,6 +652,7 @@ export const register: Register = on => {
     const terminal = e.surface === 'terminal'
     mounted.band = p.mascot && terminal && design.id !== 'compact'
     mounted.stage = false
+    mounted.scene = !terminal && design.id === 'card'
     if (terminal) {
       bandId = (e as { requestId?: string }).requestId ?? 'band'
       lastCells = ''
