@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lines Tracker Mockup</title>
+<style>
+  :root {
+    --clay: #D97757; --eye: #1F1E1D; --sand: #E3C79A; --flash: #7FB069;
+    --bg: #262624; --panel: #30302E; --line: #45443F; --text: #F5F4EE; --dim: #9C9A92;
+    --term: #1A1A19;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, system-ui, sans-serif; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 32px 0 10px; color: var(--sand); text-transform: uppercase; letter-spacing: .06em; }
+  p.note { color: var(--dim); margin: 0 0 12px; max-width: 760px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .controls button, .pbtn { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  .controls button.on { border-color: var(--clay); color: var(--clay); }
+  .num { font-variant-numeric: tabular-nums; }
+  .clay { color: var(--clay); } .sand { color: var(--sand); } .dim { color: var(--dim); } .flash { color: var(--flash); }
+  .plus { color: var(--flash); font-weight: 600; opacity: 0; transition: opacity .3s; }
+  .plus.show { opacity: 1; }
+
+  /* desktop app mock */
+  .app { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; max-width: 1100px; }
+  .chat { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; padding: 16px; gap: 10px; background: var(--bg); }
+  .msg { color: var(--dim); font-size: 13px; }
+  .working { font-size: 13px; color: var(--clay); min-height: 20px; }
+  .band { display: flex; align-items: center; gap: 14px; padding: 8px 12px; background: var(--panel); border-left: 3px solid var(--clay); border-radius: 8px; }
+  .band .stats { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .band .l1 b { font-size: 16px; }
+  .band .tag { font-size: 11px; letter-spacing: .1em; color: var(--clay); font-weight: 700; margin-right: 6px; }
+  .prompt { border: 1px solid var(--line); border-radius: 10px; padding: 12px; color: var(--dim); background: var(--term); }
+  .pane { flex: 0 1 340px; min-width: 280px; background: var(--panel); border-left: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .pane .head { display: flex; align-items: center; gap: 12px; }
+  .pane .head h3 { margin: 0; font-size: 15px; }
+  .big { font-size: 30px; font-weight: 700; line-height: 1.1; }
+  .row2 { display: flex; gap: 18px; }
+  .meter { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .meter i { display: block; height: 100%; background: var(--clay); }
+  .sec { font-size: 11px; letter-spacing: .1em; color: var(--sand); font-weight: 700; }
+  .hbar { display: grid; grid-template-columns: 1fr 64px 52px; gap: 8px; align-items: center; font-size: 13px; }
+  .hbar .b { height: 8px; border-radius: 2px; background: var(--clay); }
+  .hbar .b.s { background: var(--sand); }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pbtn.on { border-color: var(--clay); }
+
+  /* terminal mock */
+  .term { background: var(--term); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font: 14px/18px Menlo, "SF Mono", monospace; max-width: 820px; overflow-x: auto; }
+  .term .tband { display: flex; gap: 2ch; align-items: center; }
+  .term .tstats { white-space: pre; }
+  .term .tprompt { border: 1px solid #555; border-radius: 6px; padding: 2px 1ch; margin-top: 6px; color: var(--dim); white-space: pre; }
+  .term .tline { white-space: pre; color: var(--clay); margin-bottom: 6px; min-height: 18px; }
+  svg { display: block; flex: none; }
+</style>
+</head>
+<body>
+<h1>Lines Tracker redesign - mockup</h1>
+<p class="note">A look-only sketch, not the mod itself. Use the buttons to try the animations: Clawd blinks by himself, scuttles while Claude is working, hops when lines are written, and dozes off after a long idle. While idle he also does a random trick every few seconds (look around, wave, dance, double hop, sit down, love, surprised, scuttle). Colors are the "clay" palette.</p>
+<div class="controls">
+  <button id="bWork">Claude is working</button>
+  <button id="bWrite">Simulate a write (+42 lines)</button>
+  <button id="bSleep">Idle 5 min (sleep)</button>
+  <button id="bTrick">Random trick now</button>
+  <span class="dim" id="trickName" style="align-self:center"></span>
+</div>
+
+<h2>Desktop app: band above the prompt + side pane</h2>
+<div class="app">
+  <div class="chat">
+    <div class="msg">... earlier conversation ...</div>
+    <div class="msg">Claude: Updating register.tsx with the new band.</div>
+    <div class="working" id="dWork"></div>
+    <div class="band">
+      <svg id="dClawd" aria-label="Clawd"></svg>
+      <div class="stats">
+        <div class="l1"><span class="tag">LINES</span><b class="clay num" id="dCode"></b> <span class="dim">code</span> &nbsp; <b class="sand num" id="dAll"></b> <span class="dim">with comments</span> &nbsp;<span class="plus" id="dPlus">+42</span></div>
+        <div class="dim">today <span class="num" style="color:var(--text)" id="dToday"></span> &nbsp; all time <span class="num" style="color:var(--text)" id="dLife"></span></div>
+      </div>
+    </div>
+    <div class="prompt">Reply to Claude...</div>
+  </div>
+
+  <div class="pane">
+    <div class="head"><svg id="pClawd" aria-label="Clawd"></svg><div><h3>Lines written</h3><div class="dim" style="font-size:12px">this session, 47 min</div></div></div>
+    <div class="row2">
+      <div><div class="big clay num" id="pCode"></div><div class="dim">code lines</div></div>
+      <div><div class="big sand num" id="pAll"></div><div class="dim">with comments</div></div>
+    </div>
+    <div><div class="dim" style="font-size:12px">code share of all lines written</div><div class="meter"><i style="width:85%"></i></div>
+      <div class="dim" style="font-size:12px;margin-top:4px">218 comment lines, 96 blank skipped</div></div>
+    <div><div class="sec">LAST 30 DAYS</div><svg id="spark" aria-label="Lines per day, last 30 days"></svg>
+      <div class="dim" style="font-size:12px">today <span class="num" style="color:var(--text)" id="pToday"></span> &nbsp; all time <span class="num" style="color:var(--text)" id="pLife"></span></div></div>
+    <div class="dim" style="font-size:13px">9 files, 6 writes, 14 edits &nbsp; pace <span class="clay">27</span> lines/min</div>
+    <div><div class="sec">BY TYPE</div>
+      <div class="hbar"><div class="b" style="width:100%"></div><span>.tsx</span><span class="num dim">742</span></div>
+      <div class="hbar"><div class="b" style="width:52%"></div><span>.ts</span><span class="num dim">388</span></div>
+      <div class="hbar"><div class="b" style="width:20%"></div><span>.md</span><span class="num dim">154</span></div></div>
+    <div><div class="sec">BIGGEST FILES</div>
+      <div class="hbar"><div class="b s" style="width:100%"></div><span>register.tsx</span><span class="num dim">512</span></div>
+      <div class="hbar"><div class="b s" style="width:61%"></div><span>count.ts</span><span class="num dim">311</span></div>
+      <div class="hbar"><div class="b s" style="width:33%"></div><span>ui.test.tsx</span><span class="num dim">170</span></div></div>
+    <div class="btns"><button class="pbtn on">Band: on</button><button class="pbtn on">Mascot: on</button><button class="pbtn on">Pane on start: on</button></div>
+  </div>
+</div>
+
+<h2>Terminal: same band, drawn in character cells</h2>
+<p class="note">In the terminal each character cell holds two Clawd pixels stacked (half blocks), so pixels are tall and narrow. The pane in the terminal keeps the same sections, drawn with text bars.</p>
+<div class="term">
+  <div class="tline" id="tWork"></div>
+  <div class="tband">
+    <svg id="tClawd" aria-label="Clawd"></svg>
+    <div class="tstats"><span class="clay" style="font-weight:700">LINES </span><b class="clay num" id="tCode"></b><span class="dim"> code  </span><b class="sand num" id="tAll"></b><span class="dim"> with comments  </span><span class="plus" id="tPlus">+42</span>
+<span class="dim">today </span><span id="tToday"></span><span class="dim">  all time </span><span id="tLife"></span></div>
+  </div>
+  <div class="tprompt">&gt; </div>
+</div>
+
+<script>
+// Clawd, 12 x 6 pixels plus one spare row on top for the hop. O body, K eye, . empty.
+const BASE = [
+  '..OOOOOOOO..',
+  '..OKOOOOKO..',
+  'OOOKOOOOKOOO',
+  '..OOOOOOOO..',
+  '..O.O..O.O..',
+  '..O.O..O.O..',
+];
+const LEGS_B = ['..O.O..O.O..', '...O.O..O.O.'];
+
+function sprite(st) {
+  let m = BASE.map(r => r.split(''));
+  if (st.legs) m[5] = LEGS_B[1].split('');
+  const ex = st.eyeDx || 0;
+  for (const y of [1, 2]) { m[y][3] = 'O'; m[y][8] = 'O'; m[y][3 + ex] = 'K'; m[y][8 + ex] = 'K'; }
+  if (st.blink || st.sleep) { m[1][3 + ex] = 'O'; m[1][8 + ex] = 'O'; }
+  const up = (l, r) => {
+    if (l) { m[2][0] = '.'; m[2][1] = '.'; m[1][0] = 'O'; m[1][1] = 'O'; }
+    if (r) { m[2][10] = '.'; m[2][11] = '.'; m[1][10] = 'O'; m[1][11] = 'O'; }
+  };
+  if (st.armsUp) up(true, true);
+  if (st.waveR) up(false, true);
+  if (st.sit) m = m.slice(0, 5); // legs tucked under
+  return m;
+}
+
+// Canvas is 14 x 8 pixels: one spare column each side (dance) and spare rows (hop, sit).
+function draw(svg, pw, ph, st) {
+  const m = sprite(st);
+  const dx = 1 + (st.dx || 0), dy = st.hop ? 0 : st.sit ? 2 : 1;
+  const W = 14 * pw, H = 7 * ph;
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('shape-rendering', 'crispEdges');
+  let out = '';
+  m.forEach((row, y) => row.forEach((c, x) => {
+    if (c === '.') return;
+    out += `<rect x="${(x + dx) * pw}" y="${(y + dy) * ph}" width="${pw}" height="${ph}" fill="${c === 'K' ? 'var(--eye)' : 'var(--clay)'}"/>`;
+  }));
+  const mark = (t, color, rise = 0) =>
+    `<text x="${W - pw * 1.6}" y="${ph * (1.6 - rise)}" fill="${color}" font-size="${ph * 1.6}" font-family="monospace">${t}</text>`;
+  if (st.sleep) out += mark('z', 'var(--dim)');
+  if (st.heart) out += mark('♥', '#E86A6A', st.heart);
+  if (st.bang) out += mark('!', 'var(--sand)');
+  if (st.note) out += mark('♪', 'var(--sand)', st.note);
+  svg.innerHTML = out;
+}
+
+// Random tricks while idle. Each gets t = ms since it started and returns pose changes.
+const TRICKS = {
+  'look around': { ms: 1800, pose: t => ({ eyeDx: t < 600 ? -1 : t < 1200 ? 1 : 0 }) },
+  'wave':        { ms: 1600, pose: t => ({ waveR: Math.floor(t / 250) % 2 === 0 }) },
+  'dance':       { ms: 2400, pose: t => { const k = Math.floor(t / 250) % 4; return { dx: k === 1 ? -1 : k === 3 ? 1 : 0, legs: k % 2 === 1, note: 0.3 + (t % 1000) / 2500 }; } },
+  'double hop':  { ms: 1100, pose: t => ({ hop: Math.floor(t / 180) % 3 === 0, armsUp: true }) },
+  'sit down':    { ms: 2600, pose: t => ({ sit: true, blink: t > 900 && t < 1500 }) },
+  'love':        { ms: 1800, pose: t => ({ armsUp: true, heart: t / 1800 * 0.8 }) },
+  'surprised':   { ms: 1200, pose: t => ({ bang: true, hop: t < 200, eyeDx: 0 }) },
+  'scuttle':     { ms: 2200, pose: t => ({ dx: Math.floor(t / 550) % 2 ? 1 : -1, legs: Math.floor(t / 140) % 2 === 1 }) },
+};
+const NAMES = Object.keys(TRICKS);
+
+// 30-day sparkline
+(function () {
+  const v = [120,80,0,0,210,340,290,150,60,0,0,410,380,300,220,180,0,0,260,330,470,390,280,90,0,0,310,420,360,312];
+  const s = document.getElementById('spark'), bw = 8, gap = 2, h = 44, max = Math.max(...v);
+  s.setAttribute('width', v.length * (bw + gap)); s.setAttribute('height', h);
+  s.innerHTML = v.map((n, i) => {
+    const bh = n ? Math.max(2, n / max * h) : 1;
+    return `<rect x="${i * (bw + gap)}" y="${h - bh}" width="${bw}" height="${bh}" rx="1" fill="${i === v.length - 1 ? 'var(--clay)' : n ? 'var(--sand)' : 'var(--line)'}"/>`;
+  }).join('');
+})();
+
+const fmt = n => n.toLocaleString('en-US');
+const S = { code: 1284, all: 1502, today: 312, life: 18930, working: false, sleep: false, hopUntil: 0, plusUntil: 0,
+  trick: null, trickAt: 0, nextTrick: Date.now() + 3000 };
+// Real mod: every 20-60 s. Mockup: every 5-12 s so you see them.
+const nextGap = () => 5000 + Math.random() * 7000;
+function startTrick(name) {
+  S.trick = name || NAMES[Math.floor(Math.random() * NAMES.length)];
+  S.trickAt = Date.now(); S.nextTrick = S.trickAt + TRICKS[S.trick].ms + nextGap();
+  document.getElementById('trickName').textContent = 'trick: ' + S.trick;
+}
+const FACES = ['(o_o)', '(o_O)', '(O_o)', '(^_^)'];
+const VERBS = ['Writing', 'Crafting', 'Editing'];
+
+function setText(id, t) { document.getElementById(id).textContent = t; }
+
+function tick() {
+  const now = Date.now();
+  const hop = now < S.hopUntil && Math.floor((S.hopUntil - now) / 150) % 2 === 1;
+  let st = {
+    blink: !S.sleep && now % 4000 < 160,
+    legs: S.working && Math.floor(now / 250) % 2 === 1,
+    hop, armsUp: now < S.hopUntil, sleep: S.sleep,
+  };
+  // Tricks only while idle and awake, never over a hop.
+  const idle = !S.working && !S.sleep && now >= S.hopUntil;
+  if (idle && !S.trick && now >= S.nextTrick) startTrick();
+  if (S.trick) {
+    const t = now - S.trickAt;
+    if (!idle || t > TRICKS[S.trick].ms) { S.trick = null; document.getElementById('trickName').textContent = ''; }
+    else st = { ...st, ...TRICKS[S.trick].pose(t) };
+  }
+  draw(document.getElementById('dClawd'), 4, 4, st);
+  draw(document.getElementById('pClawd'), 5, 5, st);
+  draw(document.getElementById('tClawd'), 8.4, 9, st);
+
+  for (const p of ['d', 't']) {
+    setText(p + 'Code', fmt(S.code)); setText(p + 'All', fmt(S.all));
+    setText(p + 'Today', fmt(S.today)); setText(p + 'Life', fmt(S.life));
+    document.getElementById(p + 'Plus').classList.toggle('show', now < S.plusUntil);
+  }
+  setText('pCode', fmt(S.code)); setText('pAll', fmt(S.all));
+  setText('pToday', fmt(S.today)); setText('pLife', fmt(S.life));
+
+  const face = FACES[Math.floor(now / 400) % FACES.length];
+  const line = S.working ? `✻ ${VERBS[Math.floor(now / 3000) % 3]}... ${face} ${fmt(S.code)} lines` : '';
+  setText('dWork', line); setText('tWork', line);
+}
+setInterval(tick, 50); tick();
+
+const bWork = document.getElementById('bWork'), bSleep = document.getElementById('bSleep');
+bWork.onclick = () => { S.working = !S.working; S.sleep = false; bWork.classList.toggle('on', S.working); bSleep.classList.remove('on'); };
+bSleep.onclick = () => { S.sleep = !S.sleep; if (S.sleep) { S.working = false; bWork.classList.remove('on'); } bSleep.classList.toggle('on', S.sleep); };
+document.getElementById('bTrick').onclick = () => {
+  S.working = false; S.sleep = false; bWork.classList.remove('on'); bSleep.classList.remove('on');
+  startTrick();
+};
+document.getElementById('bWrite').onclick = () => {
+  S.sleep = false; bSleep.classList.remove('on');
+  S.code += 42; S.all += 49; S.today += 42; S.life += 42;
+  S.hopUntil = Date.now() + 900; S.plusUntil = Date.now() + 3000;
+};
+</script>
+</body>
+</html>

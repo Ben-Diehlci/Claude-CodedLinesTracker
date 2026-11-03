@@ -20,12 +20,23 @@ export type Stats = {
   startedAt: number
 }
 
-export type Totals = { life: Counts; today: Counts }
+/** Sums over every session on this Mac (each session writes only its own store key). */
+export type Totals = {
+  life: Counts
+  today: Counts
+  /** Lines per day, newest 30 days. */
+  days: Record<string, Counts>
+  /** Sessions that wrote or checked in recently, this one included. */
+  sessions: number
+}
+
+/** The last write: when, and how many code lines (drives the +N flash). */
+export type Pulse = { at: number; n: number }
 
 export type Prefs = { status: boolean; pane: boolean; mascot: boolean }
 
 declare module 'claude-code' {
   interface PluginState {
-    'lines-tracker': { session: Shaped<Stats>; prefs: Shaped<Prefs>; totals: Shaped<Totals> }
+    'lines-tracker': { session: Shaped<Stats>; prefs: Shaped<Prefs>; totals: Shaped<Totals>; pulse: Shaped<Pulse> }
   }
 }
