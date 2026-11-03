@@ -448,6 +448,13 @@ test('totals add up every session; the band shows the others live', async ($, on
   expect((await band.find({ type: 'Text', text: /all time/ }))?.text).toMatch(/1,502/)
   await band.unmount()
 
+  // The card band leads with today's lines (every session) and puts this session's at the side.
+  await $.command.run({ command: 'linecount', args: 'style card' })
+  const card = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+  expect((await card.find({ type: 'Text', text: /LINES/ }))?.text).toMatch(/LINES 102 code lines today/)
+  expect((await card.find({ type: 'Text', text: /this session/ }))?.text).toMatch(/2 this session/)
+  await card.unmount()
+
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
   expect(await pane.find({ type: 'Text', text: /idle-project/ })).toBeFalsy()
   await pane.unmount()

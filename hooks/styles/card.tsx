@@ -20,16 +20,17 @@ export const card: Design = {
   desktop: (v, k) => {
     const w = bandWidth(v)
     const tx = v.mascot ? 12 + clawdWidth(PX) + 10 : 16
-    const code = fmt(v.session.code)
-    const all = fmt(v.session.all)
+    // Today's lines up top (every session); this session's go in the side column.
+    const code = fmt(v.today.code)
+    const all = fmt(v.today.all)
     let inner = `<rect x="1" y="1" width="${w - 2}" height="${H - 2}" rx="12" fill="none" class="${v.mile ? 'cs' : 'hs'}" stroke-width="${v.mile ? 2 : 1}"/>`
     if (v.mascot) inner += clawdAt(v, 12, (H - clawdHeight(v, PX)) / 2, PX)
     if (v.mascot && v.mile) inner += confetti(12 + clawdWidth(PX) / 2, H / 2, v.mileAt)
 
     inner += text(tx, 25, code, { cls: 'cl', size: 18, bold: true })
     let x = tx + est(code, 18, true) + 5
-    inner += text(x, 25, 'code lines', { cls: 'mu', size: 12 })
-    x += est('code lines', 12) + 14
+    inner += text(x, 25, 'code lines today', { cls: 'mu', size: 12 })
+    x += est('code lines today', 12) + 14
     inner += text(x, 25, all, { cls: 'sa', size: 15, bold: true })
     x += est(all, 15, true) + 5
     inner += text(x, 25, 'lines with comments', { cls: 'mu', size: 12 })
@@ -47,7 +48,7 @@ export const card: Design = {
       const rows = rowsOf(v)
       inner += dots(w - 16 - rows.length * 11 + 7, 17, rows)
       inner += text(w - 16, 35, `${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}`, { cls: 'mu', size: 12, anchor: 'end' })
-      inner += text(w - 16, 51, `${fmt(v.today.code)} lines today`, { cls: 'mu', size: 12, anchor: 'end' })
+      inner += text(w - 16, 51, `${fmt(v.session.code)} this session`, { cls: 'mu', size: 12, anchor: 'end' })
       inner += text(w - 16, 66, `${fmt(v.life.code)} all time`, { cls: 'mu', size: 12, anchor: 'end' })
     }
 
@@ -61,9 +62,9 @@ export const card: Design = {
       <Box flexDirection="column">
         <Text>
           <Text color={CLAY} bold>{'LINES '}</Text>
-          <Text color={CLAY} bold>{fmt(v.session.code)}</Text>
-          <Text dimColor> code lines  </Text>
-          <Text color={SAND} bold>{fmt(v.session.all)}</Text>
+          <Text color={CLAY} bold>{fmt(v.today.code)}</Text>
+          <Text dimColor> code lines today  </Text>
+          <Text color={SAND} bold>{fmt(v.today.all)}</Text>
           <Text dimColor> lines with comments</Text>
           {v.mile ? (
             <Text color={FLASH} bold>{`  ✦ ${mileLabel(v)}`}</Text>
@@ -76,8 +77,8 @@ export const card: Design = {
         <Box>
           {stage}
           <Text>
-            <Text bold>{` ${fmt(v.today.code)}`}</Text>
-            <Text dimColor>{' lines today  '}</Text>
+            <Text bold>{` ${fmt(v.session.code)}`}</Text>
+            <Text dimColor>{' this session  '}</Text>
             {rows.map(r => (
               <Text color={r.active ? CLAY : undefined} dimColor={!r.active}>{r.hot ? '◉' : '●'}</Text>
             ))}
