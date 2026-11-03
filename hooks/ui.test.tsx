@@ -208,10 +208,11 @@ test('commands: style, outfit, goal and section', async ($, on) => {
   expect(await pane.find({ type: 'Text', text: /code lines this session/ })).toBeFalsy()
   await pane.unmount()
 
-  // Numbers is off by default; switching it on brings back the old text block.
+  // Details (id numbers) is off by default; switched on it shows the split of this session's lines.
   await run('section numbers on')
   const again = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
-  expect((await again.find({ type: 'Text', text: /code lines this session/ }))?.text).toMatch(/0/)
+  expect(await again.find({ type: 'Text', text: /DETAILS THIS SESSION/ })).toBeTruthy()
+  expect((await again.find({ type: 'Text', text: /blank, not counted/ }))?.text).toMatch(/0 blank/)
   expect(await again.find({ type: 'Text', text: /BADGES/ })).toBeFalsy()
   await again.unmount()
 })
@@ -423,7 +424,9 @@ test('totals add up every session; the band shows the others live', async ($, on
   const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
   const m = memory(on, {
     prefs: { style: 'classic' },
-    's-other': { t: T0 - 1000, life: c(500), days: { [key]: c(100) } },
+    's-other': { t: T0 - 1000, w: T0 - 1000, life: c(500), days: { [key]: c(100) } },
+    // Open but never wrote (the desktop keeps many chats running): not counted as active, not listed.
+    's-idle': { t: T0 - 1000, w: 0, proj: 'idle-project', life: c(0), days: {} },
     base: { life: c(1000), days: {}, folded: [] },
   })
   mock.clock(on, { now: T0 })
@@ -440,4 +443,8 @@ test('totals add up every session; the band shows the others live', async ($, on
   expect((await band.find({ type: 'Text', text: /all sessions today/ }))?.text).toMatch(/102/)
   expect((await band.find({ type: 'Text', text: /all time/ }))?.text).toMatch(/1,502/)
   await band.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
+  expect(await pane.find({ type: 'Text', text: /idle-project/ })).toBeFalsy()
+  await pane.unmount()
 })

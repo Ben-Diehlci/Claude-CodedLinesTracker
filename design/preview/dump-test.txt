@@ -22,6 +22,7 @@ test('dump', async ($, on) => {
     console.log('@@band-' + id + '@@' + JSON.stringify(await b.drawn()) + '@@END@@')
     await b.unmount()
   }
+  await $.command.run({ command: 'linecount', args: 'section numbers on' })
   for (const [bg, cols] of [['none', 40], ['night', 40], ['none', 110]] as const) {
     await $.command.run({ command: 'linecount', args: `background ${bg}` })
     const p = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: cols }, surface: 'desktop' } as any)

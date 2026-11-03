@@ -1,9 +1,9 @@
 // The pane: a list of sections (each on or off in prefs) and the "Look" chooser at the bottom.
 import type { Prefs } from '../types'
-import { pack, sparkCells, sparkSvg } from './clawd'
+import { pack } from './clawd'
 import { goalBar, heatStripCells } from './draw'
 import { PANE_SVG, setMode } from './panesvg'
-import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt, lastDays } from './model'
+import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt } from './model'
 import type { View } from './model'
 import { CLAY, SAND } from './styles/common'
 import type { Kit } from './styles/common'
@@ -61,31 +61,28 @@ const sections: Record<string, Section> = {
     )
   },
 
-  numbers: ({ kit, v, ink = inkFor('auto') }) => {
-    const { Box, Text, Raster, Svg } = kit.ui
-    const spark = lastDays(v.now, 30).map(d => v.days[d]?.code ?? 0)
-    const { fg, mu } = ink
+  // Details: only what no other section shows (the terminal version; the desktop draws panesvg.ts detailsSvg).
+  numbers: ({ kit, v }) => {
+    const { Box, Text } = kit.ui
+    const { code, comments, blank } = v.session
+    const total = Math.max(1, code + comments + blank)
+    const cells = 30
+    const part = (n: number) => Math.round((n / total) * cells)
 
     return (
       <Box flexDirection="column">
-        <Text color={CLAY} bold>{fmt(v.session.code)} <Text {...mu}>code lines this session</Text></Text>
-        <Text color={CLAY}>{bar(v.session.code, v.session.all, 24)}</Text>
-        <Text color={ink.sand} bold>{fmt(v.session.all)} <Text {...mu}>with comments</Text></Text>
-        <Text color={ink.sand}>{bar(v.session.all, v.session.all, 24)}</Text>
-        <Text {...mu}>{fmt(v.session.comments)} comment lines, {fmt(v.session.blank)} blank skipped</Text>
-        <Text> </Text>
-        <Text color={ink.sand} bold>LAST 30 DAYS</Text>
-        {v.surface === 'terminal' ? (
-          <Raster key="spark" columns={30} rows={3} cells={sparkCells(spark, 3)} />
-        ) : (
-          <Svg key="spark" alt="Code lines per day, last 30 days" width={300} height={44} source={sparkSvg(spark, 300, 44)} />
-        )}
-        <Text {...fg} bold>{v.sessions > 1 ? 'All sessions today ' : 'Today '}{fmt(v.today.code)} / {fmt(v.today.all)}</Text>
-        <Text {...fg} bold>All time {fmt(v.life.code)} / {fmt(v.life.all)}</Text>
-        <Text {...mu}>(code / with comments){v.sessions > 1 ? `, ${v.sessions} sessions active` : ''}</Text>
-        <Text> </Text>
-        <Text {...fg} bold>{v.files} files, {v.writes} writes, {v.edits} edits</Text>
-        <Text {...fg} bold>Pace <Text color={CLAY}>{Math.round(v.session.code / v.minutes)}</Text> code lines/min</Text>
+        <Text color={SAND} bold>DETAILS THIS SESSION</Text>
+        <Text>
+          <Text color={CLAY}>{'█'.repeat(part(code))}</Text>
+          <Text color={SAND}>{'█'.repeat(part(comments))}</Text>
+          <Text dimColor>{'░'.repeat(part(blank))}</Text>
+        </Text>
+        <Text>
+          <Text color={CLAY}>■</Text><Text dimColor>{` ${fmt(code)} code  `}</Text>
+          <Text color={SAND}>■</Text><Text dimColor>{` ${fmt(comments)} comments  `}</Text>
+          <Text dimColor>{`░ ${fmt(blank)} blank, not counted`}</Text>
+        </Text>
+        <Text>{`${v.files} files, ${v.writes} writes, ${v.edits} edits, ${fmt(Math.round(code / v.minutes))} code lines a minute`}</Text>
       </Box>
     )
   },

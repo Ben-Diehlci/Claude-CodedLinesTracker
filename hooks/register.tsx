@@ -43,7 +43,9 @@ const PANE = 'lines-tracker'
 const FRAMES = ['(o_o)', '(o_O)', '(O_o)', '(^_^)']
 
 const REFRESH_MS = 5000
-const ACTIVE_MS = 90_000
+// The desktop keeps every open chat's code running, and each checks in every 30 s: a session counts as
+// active only when it wrote lines this recently, not just because it is open.
+const ACTIVE_MS = 30 * 60_000
 const HOT_MS = 15_000
 const FOLD_AGE_MS = 60 * 60_000
 const FLASH_MS = 3000
@@ -141,6 +143,7 @@ const loadBase = async ($: any): Promise<Base> => {
 }
 
 const sumSessions = async ($: any, now: number): Promise<Totals> => {
+  const self = PREFIX + (await $.session.id())
   const base = await loadBase($)
   const folded = new Set(base.folded)
   const today = dayKey(now)
@@ -160,10 +163,13 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     if (o.hours?.d === today) o.hours.v.forEach((n, i) => (hours[i] += n))
     owl = owl || !!o.owl
     exts = union(exts, o.exts)
-    const active = now - o.t < ACTIVE_MS
+    const wrote = o.w ?? 0
+    const active = wrote > 0 && now - wrote < ACTIVE_MS
     if (active) sessions++
-    if (now - o.t < FOLD_AGE_MS) {
-      list.push({ name: o.proj || 'session', code: o.days[today]?.code ?? 0, active, hot: now - (o.w ?? 0) < HOT_MS })
+    const code = o.days[today]?.code ?? 0
+    // Listed: sessions still open that wrote today, and this one.
+    if (now - o.t < FOLD_AGE_MS && (code > 0 || k === self)) {
+      list.push({ name: o.proj || 'session', code, active: active || k === self, hot: now - wrote < HOT_MS })
     }
   }
   list.sort((a, b) => b.code - a.code)

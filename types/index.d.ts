@@ -26,7 +26,7 @@ export type Row = {
   name: string
   /** Code lines this session wrote today. */
   code: number
-  /** Wrote or checked in within the last 90 seconds. */
+  /** Wrote lines within the last 30 minutes (this session always counts). */
   active: boolean
   /** Wrote within the last 15 seconds (the blinking dot). */
   hot: boolean
@@ -40,9 +40,9 @@ export type Totals = {
   days: Record<string, Counts>
   /** Code lines per hour of today (24 numbers). */
   hours: number[]
-  /** Sessions that wrote or checked in recently, this one included. */
+  /** Sessions that wrote lines in the last 30 minutes, at least 1 (this one). */
   sessions: number
-  /** Sessions seen in the last hour, busiest first. */
+  /** Open sessions that wrote today, plus this one, busiest first. */
   list: Row[]
   /** Any line ever written after 10 pm (the Night owl badge). */
   owl: boolean

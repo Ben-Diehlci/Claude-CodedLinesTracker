@@ -192,8 +192,46 @@ export const badgesSvg = (v: View, w: number): Piece => {
   return piece(w, h, text(0, 10, 'BADGES', TAG) + s, `Badges: ${v.badges.map(b => `${b.label} ${b.got ? 'earned' : 'locked'}`).join(', ')}`)
 }
 
+/**
+ * Details: only what no other section shows. One bar of this session's lines split into code, comments and
+ * blank (blank faint: never counted), a key, then files, writes, edits and pace on one line.
+ */
+export const detailsSvg = (v: View, w: number): Piece => {
+  const { code, comments, blank } = v.session
+  const total = code + comments + blank
+  let s = text(0, 10, 'DETAILS THIS SESSION', TAG)
+  s += `<clipPath id="db"><rect x="0" y="18" width="${w}" height="10" rx="5"/></clipPath>`
+  let bars = rect(0, 18, w, 10, 'hf', 5)
+  let x = 0
+  for (const [n, cls] of [[code, 'cf'], [comments, 'sa'], [blank, 'tn hs']] as const) {
+    const bw = total ? (w * n) / total : 0
+    bars += rect(x, 18, bw, 10, cls)
+    x += bw
+  }
+  s += `<g clip-path="url(#db)">${bars}</g>`
+  // The key wraps to another line when a pane is too narrow for all three.
+  let lx = 0
+  let ly = 37
+  for (const [label, cls] of [[`${fmt(code)} code`, 'cf'], [`${fmt(comments)} comments`, 'sa'], [`${fmt(blank)} blank, not counted`, 'tn hs']] as const) {
+    const iw = 12 + est(label, 12)
+    if (lx > 0 && lx + iw > w) {
+      lx = 0
+      ly += 17
+    }
+    s += rect(lx, ly, 8, 8, cls, 2) + text(lx + 12, ly + 8, label, { cls: 'mu', size: 12 })
+    lx += iw + 12
+  }
+  const pace = Math.round(code / v.minutes)
+  const line = `${v.files} ${v.files === 1 ? 'file' : 'files'}, ${v.writes} ${v.writes === 1 ? 'write' : 'writes'}, ${v.edits} ${v.edits === 1 ? 'edit' : 'edits'}, ${fmt(pace)} code lines a minute`
+  s += text(0, ly + 29, line, { cls: 'fg', size: fit(line, w) })
+  const h = ly + 39
+
+  return piece(w, h, s, `This session: ${fmt(code)} code lines, ${fmt(comments)} comment lines, ${fmt(blank)} blank lines not counted. ${line}.`)
+}
+
 export const PANE_SVG: Record<string, (v: View, w: number) => Piece> = {
   header: headerSvg,
+  numbers: detailsSvg,
   rings: ringsSvg,
   heat: heatSvg,
   sessions: sessionsSvg,

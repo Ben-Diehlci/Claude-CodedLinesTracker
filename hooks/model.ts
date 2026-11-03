@@ -11,7 +11,7 @@ export const HEAT_WEEKS = 4
 
 export const SECTIONS = [
   { id: 'header', label: 'Level' },
-  { id: 'numbers', label: 'Numbers', off: true },
+  { id: 'numbers', label: 'Details', off: true },
   { id: 'rings', label: 'Rings' },
   { id: 'heat', label: 'Heat map' },
   { id: 'sessions', label: 'Sessions' },
