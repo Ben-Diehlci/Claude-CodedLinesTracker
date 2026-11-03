@@ -43,5 +43,6 @@ test('heat levels and prefs-1 values surviving the merge', () => {
   expect([0, 1, 50, 100].map(v => heat(v, 100))).toEqual([0, 1, 2, 4])
   const merged = mergePrefs({ status: false, pane: true, mascot: false } as any)
   expect(merged).toMatchObject({ status: false, mascot: false, style: 'auto', outfit: 'auto', goal: 500 })
-  expect(Object.values(merged.sections).every(Boolean)).toBe(true)
+  expect(merged.sections.numbers).toBe(false)
+  expect(Object.entries(merged.sections).filter(([k]) => k !== 'numbers').every(([, on]) => on)).toBe(true)
 })

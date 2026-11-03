@@ -9,7 +9,7 @@ export const DEFAULT_GOAL = 500
 
 export const SECTIONS = [
   { id: 'header', label: 'Level' },
-  { id: 'numbers', label: 'Numbers' },
+  { id: 'numbers', label: 'Numbers', off: true },
   { id: 'rings', label: 'Rings' },
   { id: 'heat', label: 'Heat map' },
   { id: 'sessions', label: 'Sessions' },
@@ -27,7 +27,7 @@ export const defaultPrefs = (): Prefs => ({
   style: 'auto',
   outfit: 'auto',
   goal: DEFAULT_GOAL,
-  sections: Object.fromEntries(SECTIONS.map(s => [s.id, true])),
+  sections: Object.fromEntries(SECTIONS.map(s => [s.id, !('off' in s)])),
 })
 
 /** Older saved prefs (prefs-1 had only three toggles) keep their values; new fields get defaults. */

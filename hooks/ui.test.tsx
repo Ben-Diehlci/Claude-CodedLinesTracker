@@ -53,6 +53,10 @@ const clawds = async (ui: any) =>
 // The band's Svg (desktop designs draw the whole band as one Svg), found by its alt text.
 const bandSvg = async (ui: any) => (await ui.findAll({ type: 'Svg' })).find((x: any) => /code lines this session/.test(x.props?.alt ?? ''))
 
+// A pane section's Svg, picked by what its alt text starts with.
+const svgAlt = async (ui: any, pick: RegExp) =>
+  ((await ui.findAll({ type: 'Svg' })) as any[]).map(x => x.props?.alt as string).find(alt => pick.test(alt ?? ''))
+
 const buttons = async (ui: any) => ((await ui.findAll({ type: 'Button' })) as any[]).map(b => b.props?.label as string)
 
 const stubs = (on: any) => {
@@ -75,7 +79,8 @@ test('pane and band draw on every surface', async ($, on) => {
 
   for (const surface of SURFACES) {
     const pane = await $.ui.mount({ ...PANE, surface })
-    expect((await pane.find({ type: 'Text', text: /code lines this session/ }))?.text).toMatch(/2/)
+    if (surface === 'terminal') expect((await pane.find({ type: 'Text', text: /LINES CRAB/ }))?.text).toMatch(/LV 1/)
+    else expect((await svgAlt(pane, /code lines this session,/))).toMatch(/^2 code lines this session/)
     await pane.unmount()
 
     const band = await $.ui.mount({ ...BAND, surface } as any)
@@ -195,9 +200,17 @@ test('commands: style, outfit, goal and section', async ($, on) => {
 
   // The pane drops a switched-off section and keeps the rest.
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
-  expect(await pane.find({ type: 'Text', text: /BADGES/ })).toBeFalsy()
-  expect(await pane.find({ type: 'Text', text: /LAST 12 WEEKS/ })).toBeTruthy()
+  expect(await svgAlt(pane, /^Badges/)).toBeUndefined()
+  expect(await svgAlt(pane, /12 weeks/)).toMatch(/12 weeks/)
+  expect(await pane.find({ type: 'Text', text: /code lines this session/ })).toBeFalsy()
   await pane.unmount()
+
+  // Numbers is off by default; switching it on brings back the old text block.
+  await run('section numbers on')
+  const again = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
+  expect((await again.find({ type: 'Text', text: /code lines this session/ }))?.text).toMatch(/0/)
+  expect(await again.find({ type: 'Text', text: /BADGES/ })).toBeFalsy()
+  await again.unmount()
 })
 
 test('old prefs keep their toggles when the shape grows', async ($, on) => {
@@ -267,11 +280,17 @@ test('sessions right now lists projects, and an outfit shows by level', async ($
   await $.session.start({ cwd: '/home/Claude-CodedLinesTracker', surface: 'desktop', isInteractive: true })
   await $.tool.call(WRITE)
 
+  const term = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
+  expect((await term.find({ type: 'Text', text: /web-app/ }))?.text).toMatch(/268/)
+  expect((await term.find({ type: 'Text', text: /Claude-CodedLinesTracker/ }))?.text).toMatch(/2/)
+  expect((await term.find({ type: 'Text', text: /LINES CRAB/ }))?.text).toMatch(/LV 8/)
+  expect((await term.find({ type: 'Text', text: /Night owl/ }))?.text).toMatch(/●/)
+  await term.unmount()
+
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
-  expect((await pane.find({ type: 'Text', text: /web-app/ }))?.text).toMatch(/268/)
-  expect((await pane.find({ type: 'Text', text: /Claude-CodedLinesTracker/ }))?.text).toMatch(/2/)
-  expect((await pane.find({ type: 'Text', text: /LINES CRAB/ }))?.text).toMatch(/LV 8/)
-  expect((await pane.find({ type: 'Text', text: /Night owl/ }))?.text).toMatch(/●/)
+  expect(await svgAlt(pane, /^Sessions right now/)).toMatch(/web-app 268, Claude-CodedLinesTracker 2/)
+  expect(await svgAlt(pane, /Level \d/)).toMatch(/Level 8/)
+  expect(await svgAlt(pane, /^Badges/)).toMatch(/Night owl earned/)
   await pane.unmount()
 
   // LV 8 wears the crown: the Clawd Svg carries the gold crown pixels.

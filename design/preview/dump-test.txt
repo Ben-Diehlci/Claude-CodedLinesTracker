@@ -1,0 +1,28 @@
+test('dump', async ($, on) => {
+  stubs(on)
+  const day = new Date(T0)
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  const days: any = {}
+  for (let i = 1; i < 80; i++) { const d = new Date(T0 - i * 86400000); if (d.getDay() % 6 && (i * 7919) % 5) days[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`] = c((i * 7919) % 900) }
+  memory(on, {
+    's-o1': { t: T0 - 1000, w: T0 + 2000, proj: 'web-app', life: c(900), days: { [key]: c(268) }, hours: { d: key, v: [0,0,0,0,0,0,0,0,12,40,88,64,10,30,52,16,0,0,0,0,0,0,0,0] }, owl: true, exts: ['ts', 'php'] },
+    's-o2': { t: T0 - 200000, w: 0, proj: 'docs-site', life: c(132), days: { [key]: c(132) }, hours: { d: '', v: [] }, owl: false, exts: [] },
+    base: { life: c(17400), days, folded: [] },
+  })
+  const clock = mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/x/CodedLinesTracker', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/a/x.tsx', content: Array.from({ length: 300 }, (_, i) => i % 7 ? `const v${i} = ${i}` : '// c').join('\n') })
+  await $.tool.call({ tool: 'Write', file_path: '/a/y.ts', content: Array.from({ length: 120 }, (_, i) => `const v${i} = ${i}`).join('\n') })
+  await $.tool.call({ tool: 'Write', file_path: '/a/z.md', content: Array.from({ length: 50 }, (_, i) => `line ${i}`).join('\n') })
+  await clock.advance(5000)
+  for (const id of ['classic', 'card', 'arcade', 'compact']) {
+    await $.command.run({ command: 'linecount', args: `style ${id}` })
+    const b = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
+    console.log('@@band-' + id + '@@' + JSON.stringify(await b.drawn()) + '@@END@@')
+    await b.unmount()
+  }
+  const p = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  console.log('@@pane@@' + JSON.stringify(await p.drawn()) + '@@END@@')
+  await p.unmount()
+})

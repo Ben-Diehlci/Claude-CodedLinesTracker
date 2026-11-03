@@ -1,7 +1,8 @@
 // The pane: a list of sections (each on or off in prefs) and the "Look" chooser at the bottom.
 import type { Prefs } from '../types'
 import { pack, sparkCells, sparkSvg } from './clawd'
-import { goalBar, heatCellsRaw, heatMap, ring, svgDoc, text, rect } from './draw'
+import { goalBar, heatCellsRaw } from './draw'
+import { PANE_SVG } from './panesvg'
 import { OUTFIT_CHOICES, SECTIONS, fmt, lastDays } from './model'
 import type { View } from './model'
 import { CLAY, SAND } from './styles/common'
@@ -23,8 +24,6 @@ export type PaneCtx = {
   p: Prefs
   /** Sets one preference and saves it. */
   set: (patch: Partial<Prefs>) => Promise<void>
-  /** Pixel size of Clawd in the header. */
-  header: { px: number }
 }
 
 const when = (day: string): string => {
@@ -36,19 +35,9 @@ const when = (day: string): string => {
 type Section = (c: PaneCtx) => any
 
 const sections: Record<string, Section> = {
-  header: ({ kit, v, header }) => {
-    const { Box, Text, Svg } = kit.ui
-    const terminal = v.surface === 'terminal'
-    const mascot = v.mascot
-      ? terminal
-        ? kit.raster()
-        : <Svg key="clawd" alt="Clawd the pixel crab" isInteractive width={14 * header.px} height={(v.outfit === 'none' || v.outfit === 'shades' ? 8 : 10) * header.px} source={kit.clawdSvg(header.px)} />
-      : null
-    const xp = terminal ? (
-      <Text color={CLAY}>{goalBar(v.xp, 22)}</Text>
-    ) : (
-      <Svg key="xp" alt={`${Math.round(v.xp * 100)}% to the next level`} width={200} height={10} source={svgDoc(200, 10, rect(0, 2, 200, 6, 'hf', 3) + rect(0, 2, Math.max(4, 200 * v.xp), 6, 'cf', 3))} />
-    )
+  header: ({ kit, v }) => {
+    const { Box, Text } = kit.ui
+    const mascot = v.mascot ? kit.raster() : null
     const head = (
       <Box flexDirection="column">
         <Text>
@@ -56,7 +45,7 @@ const sections: Record<string, Section> = {
           <Text dimColor>{`LV ${v.level}`}</Text>
         </Text>
         <Text dimColor>{`${fmt(v.life.code)} lifetime, ${fmt(v.toNext)} to LV ${v.level + 1}`}</Text>
-        {xp}
+        <Text color={CLAY}>{goalBar(v.xp, 22)}</Text>
       </Box>
     )
 
@@ -99,51 +88,28 @@ const sections: Record<string, Section> = {
   },
 
   rings: ({ kit, v }) => {
-    const { Box, Text, Svg } = kit.ui
+    const { Box, Text } = kit.ui
     const share = v.session.all ? v.session.code / v.session.all : 0
-    if (v.surface === 'terminal') {
-      return (
-        <Box flexDirection="column">
-          <Text><Text color={CLAY}>{goalBar(share, 12)}</Text> <Text bold>{Math.round(share * 100)}%</Text><Text dimColor> of this session is code</Text></Text>
-          <Text><Text color={v.goalFrac >= 1 ? GREEN : SAND}>{goalBar(v.goalFrac, 12)}</Text> <Text bold>{fmt(v.today.code)}</Text><Text dimColor>{` / ${fmt(v.goal)} today`}</Text></Text>
-        </Box>
-      )
-    }
-    const card = (x: number, frac: number, cls: string, big: string, bigCls: string, l1: string, l2: string) =>
-      `<rect x="${x + 0.5}" y="0.5" width="144" height="63" rx="10" fill="none" class="hs"/>` +
-      ring(x + 32, 32, 18, frac, cls) +
-      text(x + 58, 31, big, { cls: bigCls, size: 20, bold: true }) +
-      text(x + 58, 46, l1, { cls: 'mu', size: 11 }) +
-      text(x + 58, 58, l2, { cls: 'mu', size: 11 })
-    const src =
-      card(0, share, 'cs', fmt(v.session.code), 'cl', 'code this session', `${Math.round(share * 100)}% of lines`) +
-      card(152, v.goalFrac, v.goalFrac >= 1 ? 'ls' : 'ss', fmt(v.today.code), 'fg', `today, goal ${fmt(v.goal)}`, 'all sessions')
 
     return (
       <Box flexDirection="column">
-        <Svg key="rings" alt={`${fmt(v.session.code)} code lines this session, ${fmt(v.today.code)} of ${fmt(v.goal)} today`} width={300} height={64} source={svgDoc(300, 64, src)} />
+        <Text><Text color={CLAY}>{goalBar(share, 12)}</Text> <Text bold>{Math.round(share * 100)}%</Text><Text dimColor> of this session is code</Text></Text>
+        <Text><Text color={v.goalFrac >= 1 ? GREEN : SAND}>{goalBar(v.goalFrac, 12)}</Text> <Text bold>{fmt(v.today.code)}</Text><Text dimColor>{` / ${fmt(v.goal)} today`}</Text></Text>
       </Box>
     )
   },
 
   heat: ({ kit, v }) => {
-    const { Box, Text, Raster, Svg } = kit.ui
-    const note = (
-      <Text dimColor>
-        {`${v.streak}-day streak (best ${v.bestStreak}).`}
-        {v.best ? ` Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''}
-      </Text>
-    )
+    const { Box, Text, Raster } = kit.ui
 
     return (
       <Box flexDirection="column">
         <Text color={SAND} bold>LAST 12 WEEKS</Text>
-        {v.surface === 'terminal' ? (
-          <Raster key="heat" columns={12} rows={7} cells={pack(heatCellsRaw(v.days, v.now))} />
-        ) : (
-          <Svg key="heat" alt="Lines per day, last 12 weeks" width={12 * 15} height={7 * 15} source={svgDoc(12 * 15, 7 * 15, heatMap(0, 0, v.days, v.now))} />
-        )}
-        {note}
+        <Raster key="heat" columns={12} rows={7} cells={pack(heatCellsRaw(v.days, v.now))} />
+        <Text dimColor>
+          {`${v.streak}-day streak (best ${v.bestStreak}).`}
+          {v.best ? ` Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''}
+        </Text>
       </Box>
     )
   },
@@ -224,8 +190,19 @@ const look = ({ kit, v, p, set }: PaneCtx) => {
   const picker = v.surface !== 'mobile' && Select
   const styleName = (id: string) => (id === 'auto' ? 'Auto' : (DESIGNS.find(d => d.id === id)?.name ?? id))
 
+  const toggles = (
+    <Box flexWrap="wrap">
+      <Button key="status" label={`Band: ${p.status ? 'on' : 'off'}`} onPress={() => set({ status: !p.status })} />
+      <Button key="mascot" label={` Mascot: ${p.mascot ? 'on' : 'off'}`} onPress={() => set({ mascot: !p.mascot })} />
+      <Button key="pane" label={` Pane on start: ${p.pane ? 'on' : 'off'}`} onPress={() => set({ pane: !p.pane })} />
+      <Button key="goal" label={` Goal: ${fmt(p.goal)}`} onPress={() => set({ goal: next(GOALS, GOALS.includes(p.goal) ? p.goal : GOALS[0]) })} />
+    </Box>
+  )
+
   return (
     <Box flexDirection="column">
+      {toggles}
+      <Text> </Text>
       <Text color={SAND} bold>LOOK</Text>
       {picker ? (
         <Box flexDirection="column">
@@ -245,17 +222,12 @@ const look = ({ kit, v, p, set }: PaneCtx) => {
           />
         </Box>
       ) : (
-        <Box>
+        <Box flexWrap="wrap">
           <Button key="style" label={`Design: ${styleName(p.style)}`} onPress={() => set({ style: next(STYLE_CHOICES, p.style) })} />
           <Button key="outfit" label={` Outfit: ${p.outfit}`} onPress={() => set({ outfit: next(OUTFIT_CHOICES, p.outfit) })} />
         </Box>
       )}
-      <Box>
-        <Button key="status" label={`Band: ${p.status ? 'on' : 'off'}`} onPress={() => set({ status: !p.status })} />
-        <Button key="mascot" label={` Mascot: ${p.mascot ? 'on' : 'off'}`} onPress={() => set({ mascot: !p.mascot })} />
-        <Button key="pane" label={` Pane on start: ${p.pane ? 'on' : 'off'}`} onPress={() => set({ pane: !p.pane })} />
-        <Button key="goal" label={` Goal: ${fmt(p.goal)}`} onPress={() => set({ goal: next(GOALS, GOALS.includes(p.goal) ? p.goal : GOALS[0]) })} />
-      </Box>
+      <Text dimColor>Sections</Text>
       <Box flexWrap="wrap">
         {SECTIONS.map(s => (
           <Button
@@ -269,17 +241,33 @@ const look = ({ kit, v, p, set }: PaneCtx) => {
   )
 }
 
+/** Desktop pane width: the pane's column in pixels, less a margin. */
+const paneWidth = (cols: number): number => Math.max(240, Math.min(600, cols * 8 - 24))
+
 export const renderPane = (c: PaneCtx) => {
-  const { Box, Text } = c.kit.ui
+  const { Box, Svg } = c.kit.ui
   const on = SECTIONS.filter(s => c.p.sections[s.id] !== false)
+  const w = paneWidth(c.v.cols)
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      {on.map(s => (
-        <Box key={s.id} flexDirection="column" marginBottom={1}>
-          {sections[s.id](c)}
-        </Box>
-      ))}
+      {on.map(s => {
+        const draw = c.v.surface !== 'terminal' && Svg ? PANE_SVG[s.id] : undefined
+        if (!draw) {
+          return (
+            <Box key={s.id} flexDirection="column" marginBottom={1}>
+              {sections[s.id](c)}
+            </Box>
+          )
+        }
+        const pc = draw(c.v, w)
+
+        return (
+          <Box key={s.id} flexDirection="column" marginBottom={1}>
+            <Svg key={`svg-${s.id}`} alt={pc.alt} isInteractive width={w} height={pc.h} source={pc.src} />
+          </Box>
+        )
+      })}
       {look(c)}
     </Box>
   )

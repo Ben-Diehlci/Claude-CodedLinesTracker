@@ -28,7 +28,7 @@ export const FLASH = '#7FB069'
 export const GOLD = '#E8B84A'
 
 /** Width of a desktop band Svg: the column less room for the host's [-] collapse mark. */
-export const bandWidth = (v: View): number => Math.max(300, Math.min(v.cols * 7, 900) - 44)
+export const bandWidth = (v: View): number => Math.max(300, Math.min(1200, v.cols * 8 - 96))
 
 export const mileLabel = (v: View): string => `${fmt(Math.floor(v.life.code / MILESTONE) * MILESTONE)} lines!`
 
