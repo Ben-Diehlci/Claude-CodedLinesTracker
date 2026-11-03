@@ -286,17 +286,33 @@ const hex = (c: number) => '#' + c.toString(16).padStart(6, '0')
 export const LOOP_MS = 90_000
 const STEP_MS = 50
 
-type Opts = { working: boolean; asleep: boolean; hop: boolean; outfit?: Outfit }
+type Opts = { working: boolean; asleep: boolean; hop: boolean; outfit?: Outfit; now?: number }
 
-/** The 90 s of poses a band Svg plays, tricks at random times (reshuffled on every redraw). */
+/** A small seeded random (mulberry32): the same 90 s window always picks the same tricks. */
+const seeded = (seed: number) => () => {
+  let t = (seed += 0x6d2b79f5)
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
+
+const TRICKS_PER_LOOP = 6
+
+/**
+ * The 90 s of poses a band Svg plays. The tricks and their times come from the wall-clock 90 s window,
+ * so every redraw inside one window draws the same timeline (and clawdBody starts it at the window's
+ * current point): a redraw no longer restarts the loop before a trick is reached.
+ */
 const timeline = (o: Opts): { pose: Pose; from: number; to: number }[] => {
   const picks: { name: string; at: number }[] = []
   if (!o.working && !o.asleep) {
-    const slot = LOOP_MS / 4
-    for (let i = 0; i < 4; i++) {
-      const name = NAMES[Math.floor(Math.random() * NAMES.length)]
+    const rand = seeded(Math.floor((o.now ?? 0) / LOOP_MS))
+    const slot = LOOP_MS / TRICKS_PER_LOOP
+    for (let i = 0; i < TRICKS_PER_LOOP; i++) {
+      const name = NAMES[Math.floor(rand() * NAMES.length)]
       const room = slot - 3000 - TRICKS[name].ms
-      picks.push({ name, at: i * slot + 3000 + Math.random() * room })
+      picks.push({ name, at: i * slot + 3000 + rand() * room })
     }
   }
   const out: { pose: Pose; from: number; to: number }[] = []
@@ -345,6 +361,10 @@ export const clawdBody = (px: number, o: Opts): string => {
     if (!by.has(k)) by.set(k, { pose: s.pose, spans: [] })
     by.get(k)!.spans.push([s.from, s.to])
   }
+  // Start at the current point of the wall-clock window, so a redraw carries on instead of restarting.
+  // A hop (just wrote) plays from the start, where the timeline puts it.
+  const phase = o.hop || o.now === undefined ? 0 : o.now % LOOP_MS
+  const begin = phase ? ` begin="-${(phase / 1000).toFixed(2)}s"` : ''
   let body = ''
   for (const { pose, spans } of by.values()) {
     const ev: [number, string][] = [[0, spans[0][0] === 0 ? 'visible' : 'hidden']]
@@ -357,7 +377,7 @@ export const clawdBody = (px: number, o: Opts): string => {
     const vals = ev.map(([, v]) => v).join(';')
     body +=
       `<g visibility="hidden"><animate attributeName="visibility" calcMode="discrete" dur="${LOOP_MS / 1000}s" ` +
-      `repeatCount="indefinite" keyTimes="${times}" values="${vals}"/>${drawPose(pose, px, outfit)}</g>`
+      `repeatCount="indefinite"${begin} keyTimes="${times}" values="${vals}"/>${drawPose(pose, px, outfit)}</g>`
   }
 
   return body

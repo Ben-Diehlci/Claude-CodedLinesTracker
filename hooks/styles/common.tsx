@@ -38,7 +38,7 @@ export const summary = (v: View): string =>
 
 /** Clawd placed inside a band Svg at (x, y), px pixels per square. */
 export const clawdAt = (v: View, x: number, y: number, px: number): string =>
-  `<g transform="translate(${x},${y})">${clawdBody(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit })}</g>`
+  `<g transform="translate(${x},${y})">${clawdBody(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit, now: v.now })}</g>`
 
 export const clawdWidth = (px: number): number => W * px
 export const clawdHeight = (v: View, px: number): number => canvasH(v.outfit) * px

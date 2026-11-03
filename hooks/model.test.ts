@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { clawdBody, LOOP_MS } from './clawd'
 import { badgesOf, bestDay, heat, levelOf, mergePrefs, pickOutfit, streaks } from './model'
 
 const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
@@ -45,4 +46,19 @@ test('heat levels and prefs-1 values surviving the merge', () => {
   expect(merged).toMatchObject({ status: false, mascot: false, style: 'auto', outfit: 'auto', goal: 500 })
   expect(merged.sections.numbers).toBe(false)
   expect(Object.entries(merged.sections).filter(([k]) => k !== 'numbers').every(([, on]) => on)).toBe(true)
+})
+
+test('Clawd keeps his place in the 90 s loop across redraws', () => {
+  const o = { working: false, asleep: false, hop: false }
+  const at = Math.floor(1_700_000_000_000 / LOOP_MS) * LOOP_MS + 10_000
+  const strip = (s: string) => s.replace(/ begin="[^"]*"/g, '')
+  // Inside one window the timeline is the same; only the start point moves on.
+  const a = clawdBody(4, { ...o, now: at })
+  const b = clawdBody(4, { ...o, now: at + 20_000 })
+  expect(strip(a)).toBe(strip(b))
+  expect(b).toMatch(new RegExp(`begin="-${(((at + 20_000) % LOOP_MS) / 1000).toFixed(2)}s"`))
+  // Six tricks per window: some poses beyond plain blinking are in it.
+  expect(a.split('<g visibility').length - 1).toBeGreaterThan(4)
+  // A hop plays from the start.
+  expect(clawdBody(4, { ...o, hop: true, now: at })).not.toMatch(/begin=/)
 })

@@ -431,7 +431,7 @@ const kitFor = ($: any, e: any, v: View): Kit => {
   return {
     ui,
     face: FRAMES[Math.floor(v.now / 400) % FRAMES.length],
-    clawdSvg: (px: number) => clawdSvg(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit }),
+    clawdSvg: (px: number) => clawdSvg(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit, now: v.now }),
     raster: () =>
       e.surface === 'terminal' && Raster ? (
         <Raster key="clawd" columns={W} rows={cellRows(v.outfit)} cells={clawdCells(frame(anim, v.now), v.outfit)} />

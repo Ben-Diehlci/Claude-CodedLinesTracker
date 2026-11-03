@@ -29,7 +29,7 @@ export const headerSvg = (v: View, w: number): Piece => {
   const h = Math.max(60, ch)
   const tx = v.mascot ? 14 * px + 12 : 0
   let s = ''
-  if (v.mascot) s += `<g transform="translate(0,${(h - ch) / 2})">${clawdBody(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit })}</g>`
+  if (v.mascot) s += `<g transform="translate(0,${(h - ch) / 2})">${clawdBody(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit, now: v.now })}</g>`
   s += text(tx, h / 2 - 8, 'Lines Crab', { cls: 'fg', size: 16, bold: true })
   s += text(tx + est('Lines Crab', 16, true) + 6, h / 2 - 8, `LV ${v.level}`, { cls: 'mu', size: 13 })
   s += text(tx, h / 2 + 10, `${fmt(v.life.code)} lifetime, ${fmt(v.toNext)} to LV ${v.level + 1}`, { cls: 'mu', size: 12 })
