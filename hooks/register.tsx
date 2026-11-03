@@ -367,9 +367,9 @@ export const register: Register = on => {
         </Text>
         <Text>
           <Text dimColor>{multi ? 'all sessions today ' : 'today '}</Text>
-          <Text color="white" bold>{fmt(t.today.code)}</Text>
+          <Text bold>{fmt(t.today.code)}</Text>
           <Text dimColor>  all time </Text>
-          <Text color="white" bold>{fmt(t.life.code)}</Text>
+          <Text bold>{fmt(t.life.code)}</Text>
           {multi ? <Text dimColor>{`  ${t.sessions} sessions active`}</Text> : <Text> </Text>}
         </Text>
       </Box>
@@ -448,8 +448,8 @@ export const register: Register = on => {
         ) : (
           <Svg key="spark" alt="Code lines per day, last 30 days" width={300} height={44} source={sparkSvg(spark, 300, 44)} />
         )}
-        <Text bold>{t.sessions > 1 ? 'All sessions today ' : 'Today '}<Text color="white">{fmt(t.today.code)} / {fmt(t.today.all)}</Text></Text>
-        <Text bold>All time <Text color="white">{fmt(t.life.code)} / {fmt(t.life.all)}</Text></Text>
+        <Text bold>{t.sessions > 1 ? 'All sessions today ' : 'Today '}<Text bold>{fmt(t.today.code)} / {fmt(t.today.all)}</Text></Text>
+        <Text bold>All time <Text bold>{fmt(t.life.code)} / {fmt(t.life.all)}</Text></Text>
         <Text dimColor>(code / with comments){t.sessions > 1 ? `, ${t.sessions} sessions active` : ''}</Text>
         <Text> </Text>
         <Text bold>{Object.keys(s.byFile).length} files, {s.writes} writes, {s.edits} edits</Text>
