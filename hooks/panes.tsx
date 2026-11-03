@@ -296,9 +296,12 @@ export const renderPane = (ctx: PaneCtx) => {
   const { Button } = ctx.kit.ui
   const open = ctx.p.lookOpen
 
+  // Closed, the fill stretches to the pane's bottom edge so the whole pane takes the color.
+  const stretch = open ? {} : { flexGrow: 1 }
+
   return (
-    <Box flexDirection="column">
-      <Box key="fill" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1}>
+    <Box flexDirection="column" minHeight={open ? undefined : '100%'}>
+      <Box key="fill" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1} {...stretch}>
         {body}
         <Box marginBottom={1}>
           <Button key="settings" variant="primary" label={open ? 'Hide settings' : 'Settings'} onPress={() => ctx.set({ lookOpen: !open })} />
