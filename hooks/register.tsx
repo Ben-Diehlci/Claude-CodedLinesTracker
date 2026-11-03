@@ -1,35 +1,53 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Counts, Prefs, Pulse, Stats, Totals } from '../types'
+import type { Counts, Prefs, Pulse, Row, Stats, Totals } from '../types'
 import {
-  CELL_ROWS,
   HOP_MS,
+  NIGHT_SLEEP_MS,
   SLEEP_MS,
   W,
+  cellRows,
   clawdCells,
   clawdSvg,
   frame,
   newAnim,
-  sparkCells,
-  sparkSvg,
 } from './clawd'
+import type { Outfit } from './clawd'
 import { countLines, extOf } from './count'
+import {
+  DEFAULT_GOAL,
+  EMPTY,
+  MILESTONE,
+  OUTFIT_CHOICES,
+  SECTIONS,
+  badgesOf,
+  bestDay,
+  dayKey,
+  defaultPrefs,
+  fmt,
+  isNight,
+  levelOf,
+  mergePrefs,
+  pickOutfit,
+  streaks,
+} from './model'
+import type { View } from './model'
+import { renderPane } from './panes'
+import { DESIGNS, STYLE_CHOICES, pickDesign } from './styles'
+import type { Kit } from './styles/common'
 
 const PANE = 'lines-tracker'
 const FRAMES = ['(o_o)', '(o_O)', '(O_o)', '(^_^)']
-const EMPTY: Counts = { all: 0, code: 0, comments: 0, blank: 0 }
-
-// The "clay" palette.
-const CLAY = '#D97757'
-const SAND = '#E3C79A'
-const FLASH = '#7FB069'
 
 const REFRESH_MS = 5000
 const ACTIVE_MS = 90_000
+const HOT_MS = 15_000
 const FOLD_AGE_MS = 60 * 60_000
 const FLASH_MS = 3000
+const MILE_MS = 4000
 const PREFIX = 's-'
+const KEEP_DAYS = 120
 
 const fresh = (now: number): Stats => ({
   total: { ...EMPTY },
@@ -47,16 +65,24 @@ const session = atom({ plugin: 'lines-tracker', key: 'session' } as const, fresh
 })
 const prefs = atom(
   { plugin: 'lines-tracker', key: 'prefs' } as const,
-  { status: true, pane: true, mascot: true } as Prefs,
-  { shape: 'prefs-1' },
+  defaultPrefs(),
+  { shape: 'prefs-2' },
 )
-const totals = atom(
-  { plugin: 'lines-tracker', key: 'totals' } as const,
-  { life: { ...EMPTY }, today: { ...EMPTY }, days: {}, sessions: 1 } as Totals,
-  { shape: 'totals-2' },
-)
-const pulse = atom({ plugin: 'lines-tracker', key: 'pulse' } as const, { at: 0, n: 0 } as Pulse, {
-  shape: 'pulse-1',
+const noTotals = (): Totals => ({
+  life: { ...EMPTY },
+  today: { ...EMPTY },
+  days: {},
+  hours: Array(24).fill(0),
+  sessions: 1,
+  list: [],
+  owl: false,
+  exts: 0,
+})
+const totals = atom({ plugin: 'lines-tracker', key: 'totals' } as const, noTotals(), {
+  shape: 'totals-3',
+})
+const pulse = atom({ plugin: 'lines-tracker', key: 'pulse' } as const, { at: 0, n: 0, mile: 0 } as Pulse, {
+  shape: 'pulse-2',
 })
 
 const add = (a: Counts, b: Counts): Counts => ({
@@ -66,29 +92,28 @@ const add = (a: Counts, b: Counts): Counts => ({
   blank: a.blank + b.blank,
 })
 
-const fmt = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-
-const bar = (n: number, max: number, width: number): string =>
-  '█'.repeat(max === 0 ? 0 : Math.max(n > 0 ? 1 : 0, Math.round((n / max) * width)))
-
 const top = (map: Record<string, number>, n: number): [string, number][] =>
   Object.entries(map)
     .sort((x, y) => y[1] - x[1])
     .slice(0, n)
 
-const day = (ms: number): string => {
-  const d = new Date(ms)
-
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const lastDays = (now: number, n: number): string[] =>
-  Array.from({ length: n }, (_, i) => day(now - (n - 1 - i) * 86_400_000))
-
 /* ---- the store: one key per session (written only by its owner), summed on read ---- */
 
-type Own = { t: number; life: Counts; days: Record<string, Counts> }
-type Base = { life: Counts; days: Record<string, Counts>; folded: string[] }
+type Own = {
+  /** Last check-in. */
+  t: number
+  /** Last write (the blinking dot). */
+  w: number
+  /** Project folder name. */
+  proj: string
+  life: Counts
+  days: Record<string, Counts>
+  /** Code lines per hour for the day `d`. */
+  hours: { d: string; v: number[] }
+  owl: boolean
+  exts: string[]
+}
+type Base = { life: Counts; days: Record<string, Counts>; folded: string[]; owl?: boolean; exts?: string[] }
 
 const keepDays = (days: Record<string, Counts>, n: number): Record<string, Counts> => {
   const out: Record<string, Counts> = {}
@@ -96,6 +121,8 @@ const keepDays = (days: Record<string, Counts>, n: number): Record<string, Count
 
   return out
 }
+
+const union = (a: string[] | undefined, b: string[] | undefined): string[] => [...new Set([...(a ?? []), ...(b ?? [])])].slice(0, 60)
 
 // Totals folded from finished sessions. Older versions kept plain 'lifetime' and 'days' keys: seed from them.
 const loadBase = async ($: any): Promise<Base> => {
@@ -112,8 +139,13 @@ const loadBase = async ($: any): Promise<Base> => {
 const sumSessions = async ($: any, now: number): Promise<Totals> => {
   const base = await loadBase($)
   const folded = new Set(base.folded)
+  const today = dayKey(now)
   let life = base.life
   const days = { ...base.days }
+  const hours: number[] = Array(24).fill(0)
+  let owl = base.owl ?? false
+  let exts = base.exts ?? []
+  const list: Row[] = []
   let sessions = 0
   for (const k of (await $.store.keys()) as string[]) {
     if (!k.startsWith(PREFIX) || folded.has(k)) continue
@@ -121,10 +153,27 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     if (!o) continue
     life = add(life, o.life)
     for (const d of Object.keys(o.days)) days[d] = add(days[d] ?? EMPTY, o.days[d])
-    if (now - o.t < ACTIVE_MS) sessions++
+    if (o.hours?.d === today) o.hours.v.forEach((n, i) => (hours[i] += n))
+    owl = owl || !!o.owl
+    exts = union(exts, o.exts)
+    const active = now - o.t < ACTIVE_MS
+    if (active) sessions++
+    if (now - o.t < FOLD_AGE_MS) {
+      list.push({ name: o.proj || 'session', code: o.days[today]?.code ?? 0, active, hot: now - (o.w ?? 0) < HOT_MS })
+    }
   }
+  list.sort((a, b) => b.code - a.code)
 
-  return { life, today: days[day(now)] ?? { ...EMPTY }, days: keepDays(days, 30), sessions: Math.max(1, sessions) }
+  return {
+    life,
+    today: days[today] ?? { ...EMPTY },
+    days: keepDays(days, KEEP_DAYS),
+    hours,
+    sessions: Math.max(1, sessions),
+    list: list.slice(0, 6),
+    owl,
+    exts: exts.length,
+  }
 }
 
 // At session start: sessions idle for an hour move into 'base', so the store stays small.
@@ -134,6 +183,8 @@ const fold = async ($: any, self: string, now: number) => {
   const done: string[] = []
   let life = base.life
   const days = { ...base.days }
+  let owl = base.owl ?? false
+  let exts = base.exts ?? []
   for (const k of (await $.store.keys()) as string[]) {
     if (!k.startsWith(PREFIX) || k === self) continue
     const o = (await $.store.get(k)) as Own | undefined
@@ -142,11 +193,19 @@ const fold = async ($: any, self: string, now: number) => {
       if (now - o.t < FOLD_AGE_MS) continue
       life = add(life, o.life)
       for (const d of Object.keys(o.days)) days[d] = add(days[d] ?? EMPTY, o.days[d])
+      owl = owl || !!o.owl
+      exts = union(exts, o.exts)
     }
     done.push(k)
   }
   if (done.length === 0) return
-  await $.store.set('base', { life, days: keepDays(days, 60), folded: [...base.folded, ...done].slice(-500) })
+  await $.store.set('base', {
+    life,
+    days: keepDays(days, KEEP_DAYS + 30),
+    folded: [...base.folded, ...done].slice(-500),
+    owl,
+    exts,
+  })
   for (const k of done) await $.store.delete(k)
 }
 
@@ -154,31 +213,25 @@ const fold = async ($: any, self: string, now: number) => {
 const anim = newAnim(0)
 let lastActive = 0
 let flashShown = false
+let mileShown = false
 let asleepShown = false
 let lastCells = ''
 let ownCache: Own | undefined
 let beats = 0
+let project = 'session'
+let curOutfit: Outfit = 'none'
 const mounted: Record<'band' | 'pane', boolean> = { band: false, pane: false }
 let bandId = 'band'
 
-const clawdEl = ($: any, e: any, px: number, hop: boolean, key: string, now: number) => {
-  const { Raster, Svg } = $.ui.resolve(e) as any
-  if (e.surface === 'terminal') {
-    return (
-      <Raster key={key} columns={W} rows={CELL_ROWS} cells={clawdCells(frame(anim, now))} />
-    )
-  }
+const sleepAfter = (now: number): number => (isNight(now) ? NIGHT_SLEEP_MS : SLEEP_MS)
 
-  return (
-    <Svg
-      key={key}
-      alt="Clawd the pixel crab"
-      isInteractive
-      width={W * px}
-      height={CELL_ROWS * 2 * px}
-      source={clawdSvg(px, { working: anim.working, asleep: anim.asleep, hop })}
-    />
-  )
+const savePrefs = async ($: any) => {
+  await $.store.set('prefs', await read($, prefs))
+}
+
+const setPrefs = ($: any) => async (patch: Partial<Prefs>) => {
+  await update($, prefs, (x: Prefs) => ({ ...x, ...patch }))
+  await savePrefs($)
 }
 
 const record = async ($: any, path: string, text: string, kind: 'writes' | 'edits') => {
@@ -197,21 +250,42 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
 
   // Only this session writes its own key, so two sessions can never lose each other's counts.
   const key = PREFIX + (await $.session.id())
-  const own = ((await $.store.get(key)) as Own | undefined) ?? { t: now, life: { ...EMPTY }, days: {} }
-  const d = day(now)
+  const own = ((await $.store.get(key)) as Own | undefined) ?? newOwn(now)
+  const d = dayKey(now)
+  const hours = own.hours?.d === d ? [...own.hours.v] : Array<number>(24).fill(0)
+  hours[new Date(now).getHours()] += counts.code
   ownCache = {
     t: now,
+    w: now,
+    proj: own.proj || project,
     life: add(own.life, counts),
-    days: keepDays({ ...own.days, [d]: add(own.days[d] ?? EMPTY, counts) }, 30),
+    days: keepDays({ ...own.days, [d]: add(own.days[d] ?? EMPTY, counts) }, KEEP_DAYS),
+    hours: { d, v: hours },
+    owl: own.owl || (isNight(now) && counts.code > 0),
+    exts: counts.code > 0 ? union(own.exts, [ext]) : (own.exts ?? []),
   }
   await $.store.set(key, ownCache)
 
   lastActive = now
   anim.asleep = false
-  anim.hopUntil = now + HOP_MS
-  await update($, pulse, () => ({ at: now, n: counts.code }))
+  const before = (await read($, totals)).life.code
   await syncTotals($, now)
+  const after = (await read($, totals)).life.code
+  const crossed = Math.floor(after / MILESTONE) > Math.floor(before / MILESTONE)
+  anim.hopUntil = now + (crossed ? 1400 : HOP_MS)
+  await update($, pulse, (p: Pulse) => ({ at: now, n: counts.code, mile: crossed ? now : p.mile }))
 }
+
+const newOwn = (now: number): Own => ({
+  t: now,
+  w: 0,
+  proj: project,
+  life: { ...EMPTY },
+  days: {},
+  hours: { d: '', v: [] },
+  owl: false,
+  exts: [],
+})
 
 const syncTotals = async ($: any, now: number) => {
   const next = await sumSessions($, now)
@@ -229,12 +303,14 @@ const refresh = async ($: any) => {
   }
   await syncTotals($, now)
 
-  const asleep = now - lastActive > SLEEP_MS
+  const asleep = now - lastActive > sleepAfter(now)
   const p = await read($, pulse)
   const flashing = now - p.at < FLASH_MS
-  if (asleep !== asleepShown || flashing !== flashShown) {
+  const miling = p.mile > 0 && now - p.mile < MILE_MS
+  if (asleep !== asleepShown || flashing !== flashShown || miling !== mileShown) {
     asleepShown = asleep
     flashShown = flashing
+    mileShown = miling
     anim.asleep = asleep
     $.ui.invalidate('ui.render')
   }
@@ -244,8 +320,8 @@ const refresh = async ($: any) => {
 const tickAnim = async ($: any) => {
   if (!mounted.band && !mounted.pane) return
   const now = await $.clock.now()
-  anim.asleep = now - lastActive > SLEEP_MS
-  const cells = clawdCells(frame(anim, now))
+  anim.asleep = now - lastActive > sleepAfter(now)
+  const cells = clawdCells(frame(anim, now), curOutfit)
   if (cells === lastCells) return
   lastCells = cells
   const targets: ['band' | 'pane', string][] = [['band', bandId], ['pane', PANE]]
@@ -256,22 +332,92 @@ const tickAnim = async ($: any) => {
   }
 }
 
+/** Everything a design needs, worked out once per draw. */
+const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
+  const s = await read($, session)
+  const t = await read($, totals)
+  const pu = await read($, pulse)
+  const now = await $.clock.now()
+  const lv = levelOf(t.life.code)
+  const { streak, best } = streaks(t.days, now)
+  const goal = p.goal > 0 ? p.goal : DEFAULT_GOAL
+  const minutes = Math.max(1, (now - (s.startedAt || now)) / 60000)
+
+  return {
+    now,
+    surface: e.surface,
+    cols: (e.props as { bodyColumns?: number }).bodyColumns ?? 120,
+    working: !!(e.props as { isWorking?: boolean }).isWorking,
+    asleep: now - lastActive > sleepAfter(now),
+    hop: now - pu.at < HOP_MS,
+    mascot: p.mascot,
+    outfit: pickOutfit(p.outfit, lv.level, now),
+    session: s.total,
+    today: t.today,
+    life: t.life,
+    flash: now - pu.at < FLASH_MS ? pu.n : 0,
+    mile: pu.mile > 0 && now - pu.mile < MILE_MS,
+    mileAt: pu.mile,
+    goal,
+    goalFrac: Math.min(1, t.today.code / goal),
+    level: lv.level,
+    xp: lv.xp,
+    toNext: lv.toNext,
+    nextAt: lv.next,
+    streak,
+    bestStreak: best,
+    best: bestDay(t.days),
+    hours: t.hours,
+    rows: t.list,
+    sessions: t.sessions,
+    badges: badgesOf(t, best),
+    days: t.days,
+    minutes,
+    writes: s.writes,
+    edits: s.edits,
+    byExt: top(s.byExt, 5),
+    byFile: top(s.byFile, 5),
+    files: Object.keys(s.byFile).length,
+  }
+}
+
+const kitFor = ($: any, e: any, v: View): Kit => {
+  const ui = $.ui.resolve(e) as any
+  const { Raster } = ui
+
+  return {
+    ui,
+    face: FRAMES[Math.floor(v.now / 400) % FRAMES.length],
+    clawdSvg: (px: number) => clawdSvg(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit }),
+    raster: () =>
+      e.surface === 'terminal' && Raster ? (
+        <Raster key="clawd" columns={W} rows={cellRows(v.outfit)} cells={clawdCells(frame(anim, v.now), v.outfit)} />
+      ) : null,
+  }
+}
+
+const SECTION_IDS = SECTIONS.map(s => s.id as string)
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    const saved = (await $.store.get('prefs')) as Prefs | undefined
-    if (saved) await update($, prefs, () => ({ status: true, pane: true, mascot: true, ...saved }))
+    const saved = (await $.store.get('prefs')) as Partial<Prefs> | undefined
+    if (saved) await update($, prefs, () => mergePrefs(saved))
 
     const now = await $.clock.now()
     Object.assign(anim, newAnim(now))
     lastActive = now
+    project = ((e as { cwd?: string }).cwd ?? '').split('/').filter(Boolean).pop() || 'session'
     const self = PREFIX + (await $.session.id())
     await fold($, self, now)
-    ownCache = ((await $.store.get(self)) as Own | undefined) ?? undefined
+    ownCache = ((await $.store.get(self)) as Own | undefined) ?? newOwn(now)
+    ownCache = { ...ownCache, t: now, proj: project }
+    await $.store.set(self, ownCache)
     await syncTotals($, now)
 
     await $.command.register({
       name: 'linecount',
-      description: 'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off]',
+      description:
+        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, goal <n>, section <name> on|off',
     })
 
     // Local timers only: no model call, nothing sent to the model.
@@ -285,8 +431,9 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'linecount' }, async ($, e) => {
-    const [what = 'show', value] = e.args.trim().split(/\s+/)
+    const [what = 'show', value, extra] = e.args.trim().split(/\s+/)
     const keys = ['status', 'pane', 'mascot'] as const
+    const set = setPrefs($)
 
     if (what === 'reset') {
       await update($, session, () => fresh(0))
@@ -297,11 +444,42 @@ export const register: Register = on => {
     if ((keys as readonly string[]).includes(what)) {
       const key = what as (typeof keys)[number]
       const now = value === 'on' ? true : value === 'off' ? false : !(await read($, prefs))[key]
-      await update($, prefs, (p: Prefs) => ({ ...p, [key]: now }))
-      await $.store.set('prefs', await read($, prefs))
+      await set({ [key]: now })
       if (key === 'pane' && now) await $.ui.open({ id: PANE, title: 'Lines written' })
 
       return { text: `${key}: ${now ? 'on' : 'off'}` }
+    }
+
+    if (what === 'style') {
+      if (!value || !STYLE_CHOICES.includes(value)) return { text: `style: one of ${STYLE_CHOICES.join(', ')}` }
+      await set({ style: value })
+
+      return { text: `style: ${value}` }
+    }
+
+    if (what === 'outfit') {
+      if (!value || !(OUTFIT_CHOICES as readonly string[]).includes(value)) return { text: `outfit: one of ${OUTFIT_CHOICES.join(', ')}` }
+      await set({ outfit: value })
+
+      return { text: `outfit: ${value}` }
+    }
+
+    if (what === 'goal') {
+      const n = Math.round(Number(value))
+      if (!Number.isFinite(n) || n < 1) return { text: 'goal: a number of code lines per day, for example /linecount goal 500' }
+      await set({ goal: n })
+
+      return { text: `daily goal: ${fmt(n)} code lines` }
+    }
+
+    if (what === 'section') {
+      const id = SECTION_IDS.find(x => x === value?.toLowerCase())
+      if (!id) return { text: `section: one of ${SECTION_IDS.join(', ')}, then on or off` }
+      const cur = (await read($, prefs)).sections
+      const now = extra === 'on' ? true : extra === 'off' ? false : cur[id] === false
+      await set({ sections: { ...cur, [id]: now } })
+
+      return { text: `section ${id}: ${now ? 'on' : 'off'}` }
     }
 
     await $.ui.open({ id: PANE, title: 'Lines written' })
@@ -330,7 +508,7 @@ export const register: Register = on => {
     return ran
   })
 
-  // The band above the prompt: Clawd on the left, the numbers beside him.
+  // The band above the prompt: drawn by whichever design is chosen.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const p = await read($, prefs)
     if (!p.status || e.props.hasSurvey) {
@@ -339,50 +517,20 @@ export const register: Register = on => {
       return next(e)
     }
 
-    const { Box, Text } = $.ui.resolve(e) as any
-    const s = await read($, session)
-    const t = await read($, totals)
-    const pu = await read($, pulse)
-    const now = await $.clock.now()
-
-    anim.working = e.props.isWorking
-    anim.asleep = now - lastActive > SLEEP_MS
-    mounted.band = p.mascot && e.surface === 'terminal'
+    const v = await buildView($, e, p)
+    const design = pickDesign(p.style, v.cols)
+    anim.working = v.working
+    anim.asleep = v.asleep
+    curOutfit = v.outfit
+    const terminal = e.surface === 'terminal'
+    mounted.band = p.mascot && terminal && design.id !== 'compact'
     if (mounted.band) {
       bandId = (e as { requestId?: string }).requestId ?? 'band'
       lastCells = ''
     }
-    const flash = now - pu.at < FLASH_MS ? pu.n : 0
-    const multi = t.sessions > 1
+    const kit = kitFor($, e, v)
 
-    const stats = (
-      <Box flexDirection="column">
-        <Text>
-          <Text color={CLAY} bold>{'LINES '}</Text>
-          <Text color={CLAY} bold>{fmt(s.total.code)}</Text>
-          <Text dimColor> code  </Text>
-          <Text color={SAND} bold>{fmt(s.total.all)}</Text>
-          <Text dimColor> with comments</Text>
-          {flash > 0 ? <Text color={FLASH} bold>{`  +${fmt(flash)}`}</Text> : <Text> </Text>}
-        </Text>
-        <Text>
-          <Text dimColor>{multi ? 'all sessions today ' : 'today '}</Text>
-          <Text bold>{fmt(t.today.code)}</Text>
-          <Text dimColor>  all time </Text>
-          <Text bold>{fmt(t.life.code)}</Text>
-          {multi ? <Text dimColor>{`  ${t.sessions} sessions active`}</Text> : <Text> </Text>}
-        </Text>
-      </Box>
-    )
-
-    if (!p.mascot) return <Box paddingX={1}>{stats}</Box>
-
-    return (
-      <Box paddingX={1} alignItems="center">
-        {clawdEl($, e, 4, now - pu.at < HOP_MS, 'clawd', now)}
-        <Box marginLeft={1}>{stats}</Box>
-      </Box>
-    )
+    return terminal ? design.terminal(v, kit) : design.desktop(v, kit)
   })
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
@@ -401,76 +549,12 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Button, Text, Raster, Svg } = $.ui.resolve(e) as any
-    const s = await read($, session)
     const p = await read($, prefs)
-    const t = await read($, totals)
-    const now = await $.clock.now()
-    const minutes = Math.max(1, (now - (s.startedAt || now)) / 60000)
-    const exts = top(s.byExt, 5)
-    const files = top(s.byFile, 5)
-    const spark = lastDays(now, 30).map(d => t.days[d]?.code ?? 0)
-    const flip = (key: keyof Prefs) => async () => {
-      await update($, prefs, (x: Prefs) => ({ ...x, [key]: !x[key] }))
-      await $.store.set('prefs', await read($, prefs))
-    }
-
-    mounted.pane = p.mascot && e.surface === 'terminal'
+    const v = await buildView($, e, p)
+    curOutfit = v.outfit
+    mounted.pane = p.mascot && e.surface === 'terminal' && p.sections.header !== false
     if (mounted.pane) lastCells = ''
 
-    const head = (
-      <Box flexDirection="column">
-        <Text color={CLAY} bold>LINES WRITTEN</Text>
-        <Text dimColor>{`this session, ${Math.round(minutes)} min`}</Text>
-      </Box>
-    )
-
-    return (
-      <Box flexDirection="column" paddingX={1}>
-        {p.mascot ? (
-          <Box alignItems="center">
-            {clawdEl($, e, 5, false, 'clawd', now)}
-            <Box marginLeft={1}>{head}</Box>
-          </Box>
-        ) : (
-          head
-        )}
-        <Text> </Text>
-        <Text color={CLAY} bold>{fmt(s.total.code)} <Text dimColor>code lines this session</Text></Text>
-        <Text color={CLAY}>{bar(s.total.code, s.total.all, 24)}</Text>
-        <Text color={SAND} bold>{fmt(s.total.all)} <Text dimColor>with comments</Text></Text>
-        <Text color={SAND}>{bar(s.total.all, s.total.all, 24)}</Text>
-        <Text dimColor>{fmt(s.total.comments)} comment lines, {fmt(s.total.blank)} blank skipped</Text>
-        <Text> </Text>
-        <Text color={SAND} bold>LAST 30 DAYS</Text>
-        {e.surface === 'terminal' ? (
-          <Raster key="spark" columns={30} rows={3} cells={sparkCells(spark, 3)} />
-        ) : (
-          <Svg key="spark" alt="Code lines per day, last 30 days" width={300} height={44} source={sparkSvg(spark, 300, 44)} />
-        )}
-        <Text bold>{t.sessions > 1 ? 'All sessions today ' : 'Today '}<Text bold>{fmt(t.today.code)} / {fmt(t.today.all)}</Text></Text>
-        <Text bold>All time <Text bold>{fmt(t.life.code)} / {fmt(t.life.all)}</Text></Text>
-        <Text dimColor>(code / with comments){t.sessions > 1 ? `, ${t.sessions} sessions active` : ''}</Text>
-        <Text> </Text>
-        <Text bold>{Object.keys(s.byFile).length} files, {s.writes} writes, {s.edits} edits</Text>
-        <Text bold>Pace <Text color={CLAY}>{Math.round(s.total.code / minutes)}</Text> code lines/min</Text>
-        <Text> </Text>
-        <Text color={SAND} bold>BY TYPE</Text>
-        {exts.map(([ext, n]) => (
-          <Text><Text color={CLAY}>{bar(n, exts[0][1], 12)}</Text> .{ext} {fmt(n)}</Text>
-        ))}
-        <Text> </Text>
-        <Text color={SAND} bold>BIGGEST FILES</Text>
-        {files.map(([path, n]) => (
-          <Text><Text color={SAND}>{bar(n, files[0][1], 12)}</Text> {path.split('/').pop()} {fmt(n)}</Text>
-        ))}
-        <Text> </Text>
-        <Box>
-          <Button key="status" label={`Band: ${p.status ? 'on' : 'off'}`} onPress={flip('status')} />
-          <Button key="mascot" label={` Mascot: ${p.mascot ? 'on' : 'off'}`} onPress={flip('mascot')} />
-          <Button key="pane" label={` Pane on start: ${p.pane ? 'on' : 'off'}`} onPress={flip('pane')} />
-        </Box>
-      </Box>
-    )
+    return renderPane({ kit: kitFor($, e, v), v, p, set: setPrefs($), header: { px: 5 } })
   })
 }

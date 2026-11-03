@@ -8,13 +8,30 @@ export const FLASH = 0x7fb069
 export const DIM = 0x9c9a92
 export const LINE = 0x45443f
 const HEART = 0xe86a6a
+const PINK = 0xe86a9a
+const GOLD = 0xe8b84a
+const BLUE = 0x7a8ce0
+const WHITE = 0xf5f4ee
 const DEFAULT = 0x01000000 // the terminal's own color
 
-/** The pixel canvas: 14 wide (a spare column each side for the dance), 8 tall (hop and sit room). */
+/** The pixel canvas: 14 wide (a spare column each side for the dance); 8 tall, 10 with a hat (hop and sit room). */
 export const W = 14
-export const H = 8
+
+export type Outfit = 'none' | 'party' | 'shades' | 'crown' | 'night'
+export const OUTFITS: Outfit[] = ['none', 'party', 'shades', 'crown', 'night']
+
+const HATS: Record<Outfit, string[]> = {
+  none: [],
+  shades: [],
+  party: ['......P.....', '.....PPP....'],
+  crown: ['..Y..YY..Y..', '..YYYYYYYY..'],
+  night: ['....BBBBBBW.', '..BBBBBBBB..'],
+}
+
+/** Canvas height in pixels for an outfit. */
+export const canvasH = (o: Outfit = 'none'): number => HATS[o].length + 8
 /** Terminal size: two pixels per cell row. */
-export const CELL_ROWS = H / 2
+export const cellRows = (o: Outfit = 'none'): number => canvasH(o) / 2
 
 export type Pose = {
   blink?: boolean
@@ -23,6 +40,9 @@ export type Pose = {
   eyeDx?: number
   waveR?: boolean
   armsUp?: boolean
+  armL?: boolean
+  armR?: boolean
+  kb?: boolean
   sit?: boolean
   hop?: boolean
   dx?: number
@@ -31,7 +51,7 @@ export type Pose = {
   note?: boolean
 }
 
-// O body, K eye, . empty.
+// O body, K eye, . empty (P pink, Y gold, B blue, W white are hats).
 const BASE = [
   '..OOOOOOOO..',
   '..OKOOOOKO..',
@@ -42,51 +62,57 @@ const BASE = [
 ]
 const LEGS_B = '...O.O..O.O.'
 
-const sprite = (st: Pose): string[][] => {
-  let m = BASE.map(r => r.split(''))
-  if (st.legs) m[5] = LEGS_B.split('')
+const sprite = (st: Pose, outfit: Outfit): string[][] => {
+  const b = HATS[outfit].length
+  let m = [...HATS[outfit], ...BASE].map(r => r.split(''))
+  if (st.legs) m[b + 5] = LEGS_B.split('')
   const ex = st.eyeDx ?? 0
-  for (const y of [1, 2]) {
-    m[y][3] = 'O'
-    m[y][8] = 'O'
-    m[y][3 + ex] = 'K'
-    m[y][8 + ex] = 'K'
-  }
-  if (st.blink || st.sleep) {
-    m[1][3 + ex] = 'O'
-    m[1][8 + ex] = 'O'
-  }
-  const up = (l: boolean, r: boolean) => {
-    if (l) {
-      m[2][0] = '.'
-      m[2][1] = '.'
-      m[1][0] = 'O'
-      m[1][1] = 'O'
+  if (outfit === 'shades') {
+    m[b + 1] = '..KKKKKKKK..'.split('')
+    for (const x of [3, 4, 7, 8]) m[b + 2][x] = 'K'
+  } else {
+    for (const y of [1, 2]) {
+      m[b + y][3] = 'O'
+      m[b + y][8] = 'O'
+      m[b + y][3 + ex] = 'K'
+      m[b + y][8 + ex] = 'K'
     }
-    if (r) {
-      m[2][10] = '.'
-      m[2][11] = '.'
-      m[1][10] = 'O'
-      m[1][11] = 'O'
+    if (st.blink || st.sleep) {
+      m[b + 1][3 + ex] = 'O'
+      m[b + 1][8 + ex] = 'O'
     }
   }
-  if (st.armsUp) up(true, true)
-  if (st.waveR) up(false, true)
-  if (st.sit) m = m.slice(0, 5)
+  const left = st.armsUp || st.armL
+  const right = st.armsUp || st.waveR || st.armR
+  if (left) {
+    m[b + 2][0] = '.'
+    m[b + 2][1] = '.'
+    m[b + 1][0] = 'O'
+    m[b + 1][1] = 'O'
+  }
+  if (right) {
+    m[b + 2][10] = '.'
+    m[b + 2][11] = '.'
+    m[b + 1][10] = 'O'
+    m[b + 1][11] = 'O'
+  }
+  if (st.sit) m = m.slice(0, b + 5)
 
   return m
 }
 
-/** The pose as a W x H grid of '.', 'O' and 'K'. */
-export const grid = (st: Pose): string[][] => {
-  const g = Array.from({ length: H }, () => Array<string>(W).fill('.'))
+/** The pose as a W x canvasH grid of '.', 'O', 'K', hat letters and 'G' (keyboard). */
+export const grid = (st: Pose, outfit: Outfit = 'none'): string[][] => {
+  const h = canvasH(outfit)
+  const g = Array.from({ length: h }, () => Array<string>(W).fill('.'))
   const dx = 1 + (st.dx ?? 0)
   const dy = st.hop ? 0 : st.sit ? 2 : 1
-  sprite(st).forEach((row, y) =>
+  sprite(st, outfit).forEach((row, y) =>
     row.forEach((c, x) => {
       if (c !== '.') g[y + dy][x + dx] = c
     }),
   )
+  if (st.kb && !st.sit) for (let x = 3; x < 11; x++) g[h - 1][x + dx - 1] = 'G'
 
   return g
 }
@@ -119,6 +145,10 @@ export const TRICKS: Record<string, { ms: number; pose: (t: number) => Pose }> =
   'sit down': { ms: 2600, pose: t => ({ sit: true, blink: t > 900 && t < 1500 }) },
   love: { ms: 1800, pose: () => ({ armsUp: true, heart: true }) },
   surprised: { ms: 1200, pose: t => ({ bang: true, hop: t < 200 }) },
+  stretch: {
+    ms: 1800,
+    pose: t => ({ armsUp: t > 300 && t < 1500, hop: t > 600 && t < 1200, blink: t > 300 && t < 1500 }),
+  },
   scuttle: {
     ms: 2200,
     pose: t => ({ dx: Math.floor(t / 550) % 2 ? 1 : -1, legs: Math.floor(t / 140) % 2 === 1 }),
@@ -127,9 +157,17 @@ export const TRICKS: Record<string, { ms: number; pose: (t: number) => Pose }> =
 const NAMES = Object.keys(TRICKS)
 export const HOP_MS = 900
 export const SLEEP_MS = 5 * 60_000
+/** After 10 pm Clawd dozes off sooner. */
+export const NIGHT_SLEEP_MS = 2 * 60_000
 
 const hopPose = (left: number): Pose =>
   left > 0 ? { hop: Math.floor(left / 150) % 2 === 1, armsUp: true } : {}
+
+/** While Claude works, every other 3 s Clawd types on a tiny keyboard. */
+const typing = (t: number): Pose =>
+  Math.floor(t / 3000) % 2 === 1
+    ? { armL: Math.floor(t / 160) % 2 === 0, armR: Math.floor(t / 160) % 2 === 1, kb: true, legs: false }
+    : {}
 
 /* ---- live animation (terminal): one small state, stepped by a timer ---- */
 
@@ -159,6 +197,7 @@ export const frame = (a: Anim, now: number): Pose => {
     blink: !a.asleep && now % 4000 < 160,
     legs: a.working && Math.floor(now / 250) % 2 === 1,
     sleep: a.asleep,
+    ...(a.working ? typing(now) : {}),
     ...hopPose(a.hopUntil - now),
   }
   const idle = !a.working && !a.asleep && now >= a.hopUntil
@@ -200,14 +239,15 @@ export const pack = (cells: [number, number, number][]): string => {
   return b64(new Uint8Array(words.buffer))
 }
 
-const color = (c: string) => (c === 'K' ? EYE : CLAY)
+const COLORS: Record<string, number> = { K: EYE, P: PINK, Y: GOLD, B: BLUE, W: WHITE, G: DIM }
+const color = (c: string) => COLORS[c] ?? CLAY
 
-/** Clawd as Raster `cells`: W columns by CELL_ROWS rows. */
-export const clawdCells = (st: Pose): string => {
-  const g = grid(st)
+/** Clawd as Raster `cells`: W columns by cellRows(outfit) rows. */
+export const clawdCells = (st: Pose, outfit: Outfit = 'none'): string => {
+  const g = grid(st, outfit)
   const mk = mark(st)
   const cells: [number, number, number][] = []
-  for (let r = 0; r < CELL_ROWS; r++) {
+  for (let r = 0; r < cellRows(outfit); r++) {
     for (let x = 0; x < W; x++) {
       const top = g[2 * r][x]
       const bot = g[2 * r + 1][x]
@@ -246,7 +286,7 @@ const hex = (c: number) => '#' + c.toString(16).padStart(6, '0')
 export const LOOP_MS = 90_000
 const STEP_MS = 50
 
-type Opts = { working: boolean; asleep: boolean; hop: boolean }
+type Opts = { working: boolean; asleep: boolean; hop: boolean; outfit?: Outfit }
 
 /** The 90 s of poses a band Svg plays, tricks at random times (reshuffled on every redraw). */
 const timeline = (o: Opts): { pose: Pose; from: number; to: number }[] => {
@@ -266,6 +306,7 @@ const timeline = (o: Opts): { pose: Pose; from: number; to: number }[] => {
       blink: !o.asleep && t % 4000 < 160,
       legs: o.working && Math.floor(t / 250) % 2 === 1,
       sleep: o.asleep,
+      ...(o.working ? typing(t) : {}),
       ...(o.hop ? hopPose(HOP_MS - t) : {}),
     }
     const p = picks.find(k => t >= k.at && t < k.at + TRICKS[k.name].ms)
@@ -279,9 +320,9 @@ const timeline = (o: Opts): { pose: Pose; from: number; to: number }[] => {
   return out
 }
 
-const drawPose = (st: Pose, px: number): string => {
+const drawPose = (st: Pose, px: number, outfit: Outfit): string => {
   let s = ''
-  grid(st).forEach((row, y) =>
+  grid(st, outfit).forEach((row, y) =>
     row.forEach((c, x) => {
       if (c !== '.') s += `<rect x="${x * px}" y="${y * px}" width="${px}" height="${px}" fill="${hex(color(c))}"/>`
     }),
@@ -294,8 +335,9 @@ const drawPose = (st: Pose, px: number): string => {
   return s
 }
 
-/** A pixel-art Clawd as SVG with its whole animation timeline (SMIL, no script, no timer). */
-export const clawdSvg = (px: number, o: Opts): string => {
+/** Clawd's drawing and its whole animation timeline (SMIL, no script, no timer), for placing inside a bigger Svg. */
+export const clawdBody = (px: number, o: Opts): string => {
+  const outfit = o.outfit ?? 'none'
   const segs = timeline(o)
   const by = new Map<string, { pose: Pose; spans: [number, number][] }>()
   for (const s of segs) {
@@ -315,10 +357,17 @@ export const clawdSvg = (px: number, o: Opts): string => {
     const vals = ev.map(([, v]) => v).join(';')
     body +=
       `<g visibility="hidden"><animate attributeName="visibility" calcMode="discrete" dur="${LOOP_MS / 1000}s" ` +
-      `repeatCount="indefinite" keyTimes="${times}" values="${vals}"/>${drawPose(pose, px)}</g>`
+      `repeatCount="indefinite" keyTimes="${times}" values="${vals}"/>${drawPose(pose, px, outfit)}</g>`
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W * px}" height="${H * px}" viewBox="0 0 ${W * px} ${H * px}" shape-rendering="crispEdges">${body}</svg>`
+  return body
+}
+
+/** A pixel-art Clawd as its own SVG. */
+export const clawdSvg = (px: number, o: Opts): string => {
+  const h = canvasH(o.outfit ?? 'none')
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W * px}" height="${h * px}" viewBox="0 0 ${W * px} ${h * px}" shape-rendering="crispEdges">${clawdBody(px, o)}</svg>`
 }
 
 /** A 30-day sparkline as SVG (pane). */

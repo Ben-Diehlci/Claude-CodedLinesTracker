@@ -50,6 +50,11 @@ const clawds = async (ui: any) =>
     ...(await ui.findAll({ type: 'Svg' })).filter((x: any) => /Clawd/.test(x.props?.alt ?? '')),
   ] as any[]
 
+// The band's Svg (desktop designs draw the whole band as one Svg), found by its alt text.
+const bandSvg = async (ui: any) => (await ui.findAll({ type: 'Svg' })).find((x: any) => /code lines this session/.test(x.props?.alt ?? ''))
+
+const buttons = async (ui: any) => ((await ui.findAll({ type: 'Button' })) as any[]).map(b => b.props?.label as string)
+
 const stubs = (on: any) => {
   on('command.register', () => ({ value: { command: 'linecount' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -74,12 +79,13 @@ test('pane and band draw on every surface', async ($, on) => {
     await pane.unmount()
 
     const band = await $.ui.mount({ ...BAND, surface } as any)
-    expect((await band.find({ type: 'Text', text: /LINES/ }))?.text).toMatch(/LINES/)
+    if (surface === 'terminal') expect((await band.find({ type: 'Text', text: /LINES/ }))?.text).toMatch(/LINES/)
+    else expect((await bandSvg(band))?.props.alt).toMatch(/2 code lines this session/)
     await band.unmount()
   }
 })
 
-test('Clawd is a Raster on the terminal and an Svg on the desktop', async ($, on) => {
+test('Clawd is a Raster on the terminal and in an Svg on the desktop', async ($, on) => {
   stubs(on)
   memory(on)
   mock.clock(on, { now: T0 })
@@ -97,15 +103,15 @@ test('Clawd is a Raster on the terminal and an Svg on the desktop', async ($, on
     await ui.unmount()
   }
 
-  for (const where of [
-    { ...BAND, surface: 'desktop' },
-    { ...PANE, surface: 'desktop' },
-  ] as const) {
-    const ui = await $.ui.mount(where as any)
-    const found = await clawds(ui)
-    expect(found.map(x => x.type)).toEqual(['Svg'])
-    await ui.unmount()
-  }
+  // The desktop band is one Svg with Clawd's animation timeline inside it.
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+  expect((await bandSvg(band))?.props.source).toMatch(/attributeName="visibility"/)
+  expect((await bandSvg(band))?.props.isInteractive).toBe(true)
+  await band.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect((await clawds(pane)).map(x => x.type)).toEqual(['Svg'])
+  await pane.unmount()
 })
 
 test('mascot off hides Clawd in the band and the pane', async ($, on) => {
@@ -116,13 +122,162 @@ test('mascot off hides Clawd in the band and the pane', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   for (const surface of ['terminal', 'desktop'] as const) {
-    for (const where of [{ ...BAND, surface }, { ...PANE, surface }] as const) {
-      const ui = await $.ui.mount(where as any)
-      expect(await clawds(ui)).toHaveLength(0)
-      expect(await ui.find({ type: 'Text', text: /LINES/ })).toBeTruthy()
-      await ui.unmount()
-    }
+    const pane = await $.ui.mount({ ...PANE, surface } as any)
+    expect(await clawds(pane)).toHaveLength(0)
+    await pane.unmount()
+
+    const band = await $.ui.mount({ ...BAND, surface } as any)
+    expect(await clawds(band)).toHaveLength(0)
+    if (surface === 'terminal') expect(await band.find({ type: 'Text', text: /LINES/ })).toBeTruthy()
+    else expect((await bandSvg(band))?.props.source).not.toMatch(/attributeName="visibility"/)
+    await band.unmount()
   }
+})
+
+test('every design draws on the terminal and the desktop', async ($, on) => {
+  stubs(on)
+  memory(on)
+  mock.clock(on, { now: T0 })
+
+  await $.session.start({ cwd: '/work/proj', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+
+  for (const id of ['classic', 'card', 'arcade', 'compact']) {
+    await $.command.run({ command: 'linecount', args: `style ${id}` })
+
+    const term = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+    expect(await term.find({ type: 'Text', text: /LINES|SESSION/ })).toBeTruthy()
+    await term.unmount()
+
+    const desk = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+    if (id === 'classic') expect(await desk.find({ type: 'Text', text: /LINES/ })).toBeTruthy()
+    else expect((await bandSvg(desk))?.props.source).toMatch(/<svg[^>]*>.*<\/svg>/s)
+    await desk.unmount()
+  }
+})
+
+test('auto picks card, or compact when the band is narrow', async ($, on) => {
+  stubs(on)
+  memory(on)
+  mock.clock(on, { now: T0 })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+
+  const wide = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
+  expect((await bandSvg(wide))?.props.height).toBe(56)
+  await wide.unmount()
+  const narrow = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 50 }, surface: 'desktop' } as any)
+  expect((await bandSvg(narrow))?.props.height).toBe(30)
+  await narrow.unmount()
+})
+
+test('commands: style, outfit, goal and section', async ($, on) => {
+  stubs(on)
+  const m = memory(on)
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const run = async (args: string) => (await $.command.run({ command: 'linecount', args })) as any
+  expect((await run('style arcade')).text).toMatch(/arcade/)
+  expect((await run('style nonsense')).text).toMatch(/one of/)
+  expect((await run('outfit crown')).text).toMatch(/crown/)
+  expect((await run('goal 750')).text).toMatch(/750/)
+  expect((await run('goal abc')).text).toMatch(/number/)
+  expect((await run('section heat off')).text).toMatch(/off/)
+  expect((await run('section heat')).text).toMatch(/on/)
+  await run('section badges off')
+
+  const saved = m.get('prefs') as any
+  expect(saved).toMatchObject({ style: 'arcade', outfit: 'crown', goal: 750 })
+  expect(saved.sections.badges).toBe(false)
+  expect(saved.sections.heat).toBe(true)
+
+  // The pane drops a switched-off section and keeps the rest.
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await pane.find({ type: 'Text', text: /BADGES/ })).toBeFalsy()
+  expect(await pane.find({ type: 'Text', text: /LAST 12 WEEKS/ })).toBeTruthy()
+  await pane.unmount()
+})
+
+test('old prefs keep their toggles when the shape grows', async ($, on) => {
+  stubs(on)
+  memory(on, { prefs: { status: true, pane: false, mascot: false } })
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  const labels = await buttons(pane)
+  expect(labels).toContain(' Pane on start: off')
+  expect(labels).toContain(' Mascot: off')
+  expect(labels).toContain(' Goal: 500')
+  expect((await pane.findAll({ type: 'Select' })).map((x: any) => x.props.value)).toEqual(['auto', 'auto'])
+  await pane.unmount()
+})
+
+test('the mobile pane draws Buttons instead of Select', async ($, on) => {
+  stubs(on)
+  memory(on)
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const mobile = await $.ui.mount({ ...PANE, surface: 'mobile' } as any)
+  expect(await mobile.findAll({ type: 'Select' })).toHaveLength(0)
+  const labels = await buttons(mobile)
+  expect(labels).toContain('Design: Auto')
+  expect(labels).toContain(' Outfit: auto')
+  await mobile.unmount()
+
+  const desk = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await desk.findAll({ type: 'Select' })).toHaveLength(2)
+  await desk.unmount()
+})
+
+test('crossing 1,000 lines throws confetti', async ($, on) => {
+  stubs(on)
+  memory(on)
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  await $.tool.call(WRITE)
+  const calm = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+  expect((await bandSvg(calm))?.props.source).not.toMatch(/animateTransform/)
+  await calm.unmount()
+
+  await $.tool.call({ tool: 'Write', file_path: '/a/big.ts', content: Array.from({ length: 1100 }, (_, i) => `const v${i} = ${i}`).join('\n') })
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+  expect((await bandSvg(band))?.props.source).toMatch(/animateTransform/)
+  await band.unmount()
+
+  const term = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+  expect((await term.find({ type: 'Text', text: /1,000 lines!/ }))?.text).toMatch(/1,000 lines!/)
+  await term.unmount()
+})
+
+test('sessions right now lists projects, and an outfit shows by level', async ($, on) => {
+  stubs(on)
+  const day = new Date(T0)
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  memory(on, {
+    's-other': { t: T0 - 1000, w: T0 - 2000, proj: 'web-app', life: c(900), days: { [key]: c(268) }, hours: { d: key, v: [] }, owl: true, exts: ['ts', 'php'] },
+    base: { life: c(18_000), days: {}, folded: [] },
+  })
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/home/Claude-CodedLinesTracker', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect((await pane.find({ type: 'Text', text: /web-app/ }))?.text).toMatch(/268/)
+  expect((await pane.find({ type: 'Text', text: /Claude-CodedLinesTracker/ }))?.text).toMatch(/2/)
+  expect((await pane.find({ type: 'Text', text: /LINES CRAB/ }))?.text).toMatch(/LV 8/)
+  expect((await pane.find({ type: 'Text', text: /Night owl/ }))?.text).toMatch(/●/)
+  await pane.unmount()
+
+  // LV 8 wears the crown: the Clawd Svg carries the gold crown pixels.
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+  expect((await bandSvg(band))?.props.source).toMatch(/#e8b84a/)
+  await band.unmount()
 })
 
 test('terminal Clawd is repainted in place by the timer', async ($, on) => {
@@ -152,6 +307,7 @@ test('totals add up every session; the band shows the others live', async ($, on
   const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
   const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
   const m = memory(on, {
+    prefs: { style: 'classic' },
     's-other': { t: T0 - 1000, life: c(500), days: { [key]: c(100) } },
     base: { life: c(1000), days: {}, folded: [] },
   })

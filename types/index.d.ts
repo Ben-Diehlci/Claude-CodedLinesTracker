@@ -20,20 +20,52 @@ export type Stats = {
   startedAt: number
 }
 
+/** One open session in the "sessions right now" list. */
+export type Row = {
+  /** The project folder the session started in. */
+  name: string
+  /** Code lines this session wrote today. */
+  code: number
+  /** Wrote or checked in within the last 90 seconds. */
+  active: boolean
+  /** Wrote within the last 15 seconds (the blinking dot). */
+  hot: boolean
+}
+
 /** Sums over every session on this Mac (each session writes only its own store key). */
 export type Totals = {
   life: Counts
   today: Counts
-  /** Lines per day, newest 30 days. */
+  /** Lines per day, newest 120 days. */
   days: Record<string, Counts>
+  /** Code lines per hour of today (24 numbers). */
+  hours: number[]
   /** Sessions that wrote or checked in recently, this one included. */
   sessions: number
+  /** Sessions seen in the last hour, busiest first. */
+  list: Row[]
+  /** Any line ever written after 10 pm (the Night owl badge). */
+  owl: boolean
+  /** How many different file types were ever written (the Polyglot badge). */
+  exts: number
 }
 
-/** The last write: when, and how many code lines (drives the +N flash). */
-export type Pulse = { at: number; n: number }
+/** The last write: when, how many code lines (the +N flash), and when a 1,000 milestone was crossed. */
+export type Pulse = { at: number; n: number; mile: number }
 
-export type Prefs = { status: boolean; pane: boolean; mascot: boolean }
+export type Prefs = {
+  status: boolean
+  pane: boolean
+  mascot: boolean
+  /** Band design id: auto, classic, card, arcade or compact. */
+  style: string
+  /** Clawd's outfit: auto (by level), none, party, shades, crown or night. */
+  outfit: string
+  /** Daily goal in code lines. */
+  goal: number
+  /** Pane sections switched on or off, by section id. */
+  sections: Record<string, boolean>
+}
 
 declare module 'claude-code' {
   interface PluginState {
