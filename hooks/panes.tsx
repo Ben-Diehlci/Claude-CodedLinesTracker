@@ -3,7 +3,7 @@ import type { Prefs } from '../types'
 import { pack, sparkCells, sparkSvg } from './clawd'
 import { goalBar, heatCellsRaw } from './draw'
 import { PANE_SVG, setMode } from './panesvg'
-import { BACKGROUNDS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt, lastDays } from './model'
+import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt, lastDays } from './model'
 import type { View } from './model'
 import { CLAY, SAND } from './styles/common'
 import type { Kit } from './styles/common'
@@ -107,8 +107,8 @@ const sections: Record<string, Section> = {
 
     return (
       <Box flexDirection="column">
-        <Text color={SAND} bold>LAST 12 WEEKS</Text>
-        <Raster key="heat" columns={12} rows={7} cells={pack(heatCellsRaw(v.days, v.now))} />
+        <Text color={SAND} bold>{`LAST ${HEAT_WEEKS} WEEKS`}</Text>
+        <Raster key="heat" columns={HEAT_WEEKS} rows={7} cells={pack(heatCellsRaw(v.days, v.now, HEAT_WEEKS))} />
         <Text dimColor>
           {`${v.streak}-day streak (best ${v.bestStreak}).`}
           {v.best ? ` Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''}

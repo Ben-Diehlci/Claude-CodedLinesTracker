@@ -3,7 +3,7 @@
 import { clawdBody, canvasH } from './clawd'
 import { est, heatMap, rect, ring, svgDoc, text } from './draw'
 import type { Mode } from './draw'
-import { fmt } from './model'
+import { HEAT_WEEKS, fmt } from './model'
 import type { View } from './model'
 
 export type Piece = { h: number; src: string; alt: string }
@@ -73,8 +73,9 @@ export const ringsSvg = (v: View, w: number): Piece => {
 
 /** 12-week heat map, then the streak and busiest day. */
 export const heatSvg = (v: View, w: number): Piece => {
-  const cs = 12
-  const gap = 3
+  // Fewer weeks, so bigger squares than the mockup's 12-week map.
+  const cs = 20
+  const gap = 4
   const gh = 7 * (cs + gap)
   const first = `${v.streak}-day streak (best ${v.bestStreak}).`
   const second = v.best ? `Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''
@@ -83,11 +84,11 @@ export const heatSvg = (v: View, w: number): Piece => {
   const lines = est(note, 12) <= w ? [note] : [first, second]
   const h = 14 + gh + 4 + lines.length * 16
   const s =
-    text(0, 10, 'LAST 12 WEEKS', TAG) +
-    heatMap(0.5, 16.5, v.days, v.now, cs, gap) +
+    text(0, 10, `LAST ${HEAT_WEEKS} WEEKS`, TAG) +
+    heatMap(0.5, 16.5, v.days, v.now, cs, gap, HEAT_WEEKS) +
     lines.map((l, i) => text(0, 14 + gh + 16 + i * 16, l, { cls: 'mu', size: 12 })).join('')
 
-  return piece(w, h, s, `Lines per day, last 12 weeks. ${note}`)
+  return piece(w, h, s, `Lines per day, last ${HEAT_WEEKS} weeks. ${note}`)
 }
 
 /** One row per open session: a dot (blinking while it writes), the project, a bar, today's lines. */

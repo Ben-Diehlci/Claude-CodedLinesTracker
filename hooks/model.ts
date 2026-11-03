@@ -6,6 +6,8 @@ export const EMPTY: Counts = { all: 0, code: 0, comments: 0, blank: 0 }
 export const LEVEL_LINES = 2500
 export const MILESTONE = 1000
 export const DEFAULT_GOAL = 500
+/** Weeks the heat map shows (Ben: 4 instead of 12). */
+export const HEAT_WEEKS = 4
 
 export const SECTIONS = [
   { id: 'header', label: 'Level' },

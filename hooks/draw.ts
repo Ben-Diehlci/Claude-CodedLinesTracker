@@ -156,8 +156,8 @@ export const dots = (x: number, y: number, rows: { active: boolean; hot: boolean
     })
     .join('')
 
-/** Heat map: 12 weeks x 7 days (Monday first), the last column ends today. */
-export const heatMap = (x: number, y: number, days: Record<string, { code: number }>, now: number, cs = 12, gap = 3, weeks = 12): string => {
+/** Heat map: `weeks` columns x 7 days (Monday first), the last column ends today. */
+export const heatMap = (x: number, y: number, days: Record<string, { code: number }>, now: number, cs = 12, gap = 3, weeks = 4): string => {
   const wd = (new Date(now).getDay() + 6) % 7
   const total = (weeks - 1) * 7 + wd + 1
   const key = (ms: number): string => {
@@ -172,7 +172,7 @@ export const heatMap = (x: number, y: number, days: Record<string, { code: numbe
     const lvl = heat(v, max)
     const last = k === total - 1
     const cls = (lvl ? `h${lvl}` : 'tn hs') + (last ? ' fs' : '')
-    out += `<rect x="${x + Math.floor(k / 7) * (cs + gap)}" y="${y + (k % 7) * (cs + gap)}" width="${cs}" height="${cs}" rx="2" class="${cls}"${last ? ' stroke-width="1.5"' : ''}/>`
+    out += `<rect x="${x + Math.floor(k / 7) * (cs + gap)}" y="${y + (k % 7) * (cs + gap)}" width="${cs}" height="${cs}" rx="${cs > 14 ? 4 : 2}" class="${cls}"${last ? ' stroke-width="1.5"' : ''}/>`
   })
 
   return out
@@ -213,7 +213,7 @@ export const hoursText = (hours: number[]): string => {
 }
 
 /** Heat map as terminal cells (glyph, fg, bg) for a Raster: weeks columns, 7 rows. */
-export const heatCellsRaw = (days: Record<string, { code: number }>, now: number, weeks = 12): [number, number, number][] => {
+export const heatCellsRaw = (days: Record<string, { code: number }>, now: number, weeks = 4): [number, number, number][] => {
   const wd = (new Date(now).getDay() + 6) % 7
   const total = (weeks - 1) * 7 + wd + 1
   const key = (ms: number): string => {

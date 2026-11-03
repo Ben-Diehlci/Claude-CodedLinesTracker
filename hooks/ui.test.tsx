@@ -201,7 +201,7 @@ test('commands: style, outfit, goal and section', async ($, on) => {
   // The pane drops a switched-off section and keeps the rest.
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
   expect(await svgAlt(pane, /^Badges/)).toBeUndefined()
-  expect(await svgAlt(pane, /12 weeks/)).toMatch(/12 weeks/)
+  expect(await svgAlt(pane, /4 weeks/)).toMatch(/last 4 weeks/)
   expect(await pane.find({ type: 'Text', text: /code lines this session/ })).toBeFalsy()
   await pane.unmount()
 
