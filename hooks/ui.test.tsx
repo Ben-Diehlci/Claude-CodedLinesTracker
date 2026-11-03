@@ -268,8 +268,7 @@ test('a chosen pane background fills the pane and fixes the drawings to light or
   const fill = ((await dark.drawn()) as any).children[0]
   expect(fill.props.backgroundColor).toBe('#30302E')
   // Closed, the fill stretches to the pane's bottom edge.
-  expect(((await dark.drawn()) as any).props.minHeight).toBe('100%')
-  expect(fill.props.flexGrow).toBe(1)
+  expect(fill.props.minHeight).toBe(40)
   const src = (await dark.find({ type: 'Svg' }))?.props.source as string
   expect(src).not.toMatch(/prefers-color-scheme/)
   expect(src).toMatch(/\.fg\{fill:#F5F4EE\}/)

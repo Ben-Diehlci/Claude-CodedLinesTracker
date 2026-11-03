@@ -296,11 +296,12 @@ export const renderPane = (ctx: PaneCtx) => {
   const { Button } = ctx.kit.ui
   const open = ctx.p.lookOpen
 
-  // Closed, the fill stretches to the pane's bottom edge so the whole pane takes the color.
-  const stretch = open ? {} : { flexGrow: 1 }
+  // Closed, the fill is at least as tall as the pane's room, so the whole pane takes the color
+  // ('100%' was ignored by the desktop pane).
+  const stretch = open || !ctx.v.paneRows ? {} : { minHeight: ctx.v.paneRows }
 
   return (
-    <Box flexDirection="column" minHeight={open ? undefined : '100%'}>
+    <Box flexDirection="column">
       <Box key="fill" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1} {...stretch}>
         {body}
         <Box marginBottom={1}>

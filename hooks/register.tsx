@@ -383,6 +383,7 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     now,
     surface: e.surface,
     cols: (e.props as { bodyColumns?: number }).bodyColumns ?? 120,
+    paneRows: (e.props as { scroll?: { bodyRows?: number } }).scroll?.bodyRows ?? 0,
     working: !!(e.props as { isWorking?: boolean }).isWorking,
     asleep: now - lastActive > sleepAfter(now),
     hop: now - pu.at < HOP_MS,

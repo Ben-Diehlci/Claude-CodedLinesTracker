@@ -138,6 +138,8 @@ export type View = {
   surface: string
   /** Cells the band may use (the terminal's width, or the desktop's in cells). */
   cols: number
+  /** Rows a pane's body has room for (its scroll window), 0 when unknown. */
+  paneRows: number
   working: boolean
   asleep: boolean
   hop: boolean
