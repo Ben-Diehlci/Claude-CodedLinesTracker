@@ -13,7 +13,7 @@ def el(n):
         if p.get('backgroundColor'): st += 'background:%s;' % p['backgroundColor']
         if p.get('paddingY'): st += 'padding-top:%dem;padding-bottom:%dem;' % (p['paddingY'], p['paddingY'])
         if p.get('columnGap'): st += 'column-gap:%dch;' % p['columnGap']
-        for k, css in [('paddingX','padding-left:%dch;padding-right:%dch;'), ('marginLeft','margin-left:%dch;%s'), ('marginBottom','margin-bottom:%dem;%s')]:
+        for k, css in [('paddingX','padding-left:%dch;padding-right:%dch;'), ('paddingTop','padding-top:%dem;%s'), ('marginLeft','margin-left:%dch;%s'), ('marginBottom','margin-bottom:%dem;%s')]:
             if p.get(k):
                 st += css % (p[k], p[k]) if css.count('%d') == 2 else (css.replace('%s','') % p[k])
         return f'<div style="{st}">{kids}</div>'

@@ -264,13 +264,15 @@ test('a chosen pane background fills the pane and fixes the drawings to light or
   expect((m.get('prefs') as any).bg).toBe('slate')
 
   const dark = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
-  expect(((await dark.drawn()) as any).props.backgroundColor).toBe('#30302E')
+  // The fill is a card behind the sections; the controls below it stay on the app's own background.
+  const root = (await dark.drawn()) as any
+  expect(root.props.backgroundColor).toBeUndefined()
+  expect(root.children[0].props.backgroundColor).toBe('#30302E')
+  expect(JSON.stringify(root.children[0])).not.toMatch(/"Button"|"Select"/)
   const src = (await dark.find({ type: 'Svg' }))?.props.source as string
   expect(src).not.toMatch(/prefers-color-scheme/)
   expect(src).toMatch(/\.fg\{fill:#F5F4EE\}/)
-  expect((await dark.find({ type: 'Text', text: /^Sections$/ }))?.props.color).toBe('#C2C0B6')
-  // The app's own button text would sink into a dark fill: our Buttons carry their label as Text in the light color.
-  expect((await dark.find({ type: 'Text', text: /^Band: on$/ }))?.props.color).toBe('#F5F4EE')
+  expect((await dark.find({ type: 'Text', text: /^Sections$/ }))?.props.dimColor).toBe(true)
   expect(await buttons(dark)).toContain('Heat map: on ')
   await dark.unmount()
 

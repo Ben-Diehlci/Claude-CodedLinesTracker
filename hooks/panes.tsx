@@ -211,15 +211,7 @@ const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
     </Box>
   )
 
-  // On a chosen background the app's own button text can sink into it: draw the label as our Text, in the background's color.
-  const btn = (key: string, label: string, onPress: () => Promise<void>) =>
-    'color' in ink.fg ? (
-      <Button key={key} label={label} onPress={onPress}>
-        <Text {...ink.fg}>{label}</Text>
-      </Button>
-    ) : (
-      <Button key={key} label={label} onPress={onPress} />
-    )
+  const btn = (key: string, label: string, onPress: () => Promise<void>) => <Button key={key} label={label} onPress={onPress} />
 
   const toggles = (
     <Box flexWrap="wrap">
@@ -271,29 +263,36 @@ export const renderPane = (ctx: PaneCtx) => {
   const bg = ctx.v.surface === 'terminal' ? backgroundOf('none') : backgroundOf(ctx.p.bg)
   setMode(bg.mode)
   const c: PaneCtx = { ...ctx, ink: inkFor(bg.mode) }
-  const fill = bg.color ? { backgroundColor: bg.color, paddingY: 1 } : {}
+  // The fill sits behind the sections only, as a card: the controls stay on the app's own background,
+  // where the app's buttons and menus (whose colors a plugin cannot set) always read.
+  const body = on.map(s => {
+    const draw = c.v.surface !== 'terminal' && Svg ? PANE_SVG[s.id] : undefined
+    if (!draw) {
+      return (
+        <Box key={s.id} flexDirection="column" marginBottom={1}>
+          {sections[s.id](c)}
+        </Box>
+      )
+    }
+    const pc = draw(c.v, w)
+
+    return (
+      <Box key={s.id} flexDirection="column" marginBottom={1}>
+        <Svg key={`svg-${s.id}`} alt={pc.alt} isInteractive width={w} height={pc.h} source={pc.src} />
+      </Box>
+    )
+  })
 
   return (
-    <Box flexDirection="column" paddingX={1} {...fill}>
-      {on.map(s => {
-        const draw = c.v.surface !== 'terminal' && Svg ? PANE_SVG[s.id] : undefined
-        if (!draw) {
-          return (
-            <Box key={s.id} flexDirection="column" marginBottom={1}>
-              {sections[s.id](c)}
-            </Box>
-          )
-        }
-        const pc = draw(c.v, w)
-
-        return (
-          <Box key={s.id} flexDirection="column" marginBottom={1}>
-            <Svg key={`svg-${s.id}`} alt={pc.alt} isInteractive width={w} height={pc.h} source={pc.src} />
-          </Box>
-        )
-      })}
-      {look(c)}
+    <Box flexDirection="column" paddingX={1}>
+      {bg.color ? (
+        <Box key="card" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1} marginBottom={1}>
+          {body}
+        </Box>
+      ) : (
+        body
+      )}
+      {look({ ...ctx, ink: inkFor('auto') })}
     </Box>
   )
 }
-
