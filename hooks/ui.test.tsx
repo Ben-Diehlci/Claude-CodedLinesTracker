@@ -290,6 +290,31 @@ test('a chosen pane background fills the pane and fixes the drawings to light or
   await term.unmount()
 })
 
+test('a chat woken from sleep gets its own stats back from the store', async ($, on) => {
+  stubs(on)
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  // What this chat saved before the app put it to sleep: its memory is gone, its store key is kept.
+  memory(on, {
+    prefs: { style: 'classic' },
+    's-me': {
+      t: T0 - 60_000, w: T0 - 60_000, proj: 'proj', life: c(442), days: {}, hours: { d: '', v: [] }, owl: false, exts: ['ts'],
+      s: { total: c(442), writes: 3, edits: 4, byExt: { ts: 442 }, byFile: { '/a/draw.ts': 195 }, startedAt: T0 - 3_600_000 },
+    },
+  })
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/x/proj', surface: 'desktop', isInteractive: true })
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+  expect((await band.find({ type: 'Text', text: /LINES/ }))?.text).toMatch(/LINES 442 code lines/)
+  await band.unmount()
+
+  // The next write adds to the restored count, and the saved copy follows.
+  await $.tool.call(WRITE)
+  const again = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+  expect((await again.find({ type: 'Text', text: /LINES/ }))?.text).toMatch(/LINES 444 code lines/)
+  await again.unmount()
+})
+
 test('crossing 1,000 lines throws confetti', async ($, on) => {
   stubs(on)
   memory(on)

@@ -114,6 +114,8 @@ type Own = {
   hours: { d: string; v: number[] }
   owl: boolean
   exts: string[]
+  /** This session's own stats, a copy of the session atom (memory), so a chat the app put to sleep gets them back. */
+  s?: Stats
 }
 type Base = { life: Counts; days: Record<string, Counts>; folded: string[]; owl?: boolean; exts?: string[] }
 
@@ -265,6 +267,7 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
     hours: { d, v: hours },
     owl: own.owl || (isNight(now) && counts.code > 0),
     exts: counts.code > 0 ? union(own.exts, [ext]) : (own.exts ?? []),
+    s: trimStats(await read($, session)),
   }
   await $.store.set(key, ownCache)
 
@@ -276,6 +279,35 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
   const crossed = Math.floor(after / MILESTONE) > Math.floor(before / MILESTONE)
   anim.hopUntil = now + (crossed ? 1400 : HOP_MS)
   await update($, pulse, (p: Pulse) => ({ at: now, n: counts.code, mile: crossed ? now : p.mile }))
+}
+
+// The saved copy keeps the 40 biggest files, so the key stays small.
+const trimStats = (s: Stats): Stats => ({ ...s, byFile: Object.fromEntries(top(s.byFile, 40)) })
+
+let restored = false
+let ticking = false
+
+/**
+ * After the app puts an idle chat to sleep its memory (the session atom, this module's state) can be gone
+ * while the store is kept: bring the session's stats back from its own key, once per load of this code.
+ */
+const restore = async ($: any) => {
+  if (restored) return
+  restored = true
+  const key = PREFIX + (await $.session.id())
+  const own = (await $.store.get(key)) as Own | undefined
+  if (own && !ownCache) ownCache = own
+  const cur = await read($, session)
+  if (own?.s && cur.writes + cur.edits === 0 && own.s.writes + own.s.edits > 0) await update($, session, () => own.s!)
+}
+
+// Local timers only: no model call, nothing sent to the model. Started at session start, or again on the
+// next draw when this code was loaded without one (a chat woken from sleep).
+const startTimers = ($: any) => {
+  if (ticking) return
+  ticking = true
+  $.clock.every(REFRESH_MS, () => void refresh($).catch(() => {}))
+  $.clock.every(120, () => void tickAnim($).catch(() => {}))
 }
 
 const newOwn = (now: number): Own => ({
@@ -336,6 +368,8 @@ const tickAnim = async ($: any) => {
 
 /** Everything a design needs, worked out once per draw. */
 const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
+  await restore($)
+  startTimers($)
   const s = await read($, session)
   const t = await read($, totals)
   const pu = await read($, pulse)
@@ -414,6 +448,8 @@ export const register: Register = on => {
     ownCache = ((await $.store.get(self)) as Own | undefined) ?? newOwn(now)
     ownCache = { ...ownCache, t: now, proj: project }
     await $.store.set(self, ownCache)
+    restored = false
+    await restore($)
     await syncTotals($, now)
 
     await $.command.register({
@@ -422,9 +458,7 @@ export const register: Register = on => {
         'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, goal <n>, background <name>, section <name> on|off',
     })
 
-    // Local timers only: no model call, nothing sent to the model.
-    $.clock.every(REFRESH_MS, () => void refresh($).catch(() => {}))
-    $.clock.every(120, () => void tickAnim($).catch(() => {}))
+    startTimers($)
 
     const p = await read($, prefs)
     if (p.pane) void $.ui.open({ id: PANE, title: 'Lines written' })
@@ -439,6 +473,10 @@ export const register: Register = on => {
 
     if (what === 'reset') {
       await update($, session, () => fresh(0))
+      if (ownCache) {
+        ownCache = { ...ownCache, s: fresh(0) }
+        await $.store.set(PREFIX + (await $.session.id()), ownCache)
+      }
 
       return { text: 'Session line counts reset. Lifetime totals are kept.' }
     }
