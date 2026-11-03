@@ -192,7 +192,7 @@ const inkFor = (mode: string): Ink =>
   mode === 'light'
     ? { fg: { color: '#1F1E1D' }, mu: { color: '#6B6A64' }, sand: '#A98049' }
     : mode === 'dark'
-      ? { fg: { color: '#F5F4EE' }, mu: { color: '#9C9A92' }, sand: '#E3C79A' }
+      ? { fg: { color: '#F5F4EE' }, mu: { color: '#C2C0B6' }, sand: '#E3C79A' }
       : { fg: {}, mu: { dimColor: true }, sand: '#B8925A' }
 
 const next = <T,>(list: readonly T[], cur: T): T => list[(list.indexOf(cur) + 1) % list.length]

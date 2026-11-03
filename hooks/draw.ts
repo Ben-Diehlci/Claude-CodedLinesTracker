@@ -6,10 +6,10 @@ const FONT = 'system-ui,-apple-system,Segoe UI,sans-serif'
 
 const LIGHT = `.fg{fill:#1F1E1D}.mu{fill:#6B6A64}.cl{fill:#C6613F}.sa{fill:#A98049}.fl{fill:#4F8A3C}.go{fill:#C9921F}.bl{fill:#5565C8}.pk{fill:#D45A8A}
 .hf{fill:rgba(31,30,29,.14)}.tn{fill:rgba(31,30,29,.05)}.ins{fill:rgba(31,30,29,.07)}.hs{stroke:rgba(31,30,29,.2)}.cs{stroke:#C6613F}.ss{stroke:#A98049}.ls{stroke:#4F8A3C}.fs{stroke:#1F1E1D}.cf{fill:#C6613F}
-.h1{fill:#F2D3C6}.h2{fill:#E8A88F}.h3{fill:#D97757}.h4{fill:#A84C30}`
-const DARK = `.fg{fill:#F5F4EE}.mu{fill:#9C9A92}.cl{fill:#D97757}.sa{fill:#E3C79A}.fl{fill:#7FB069}.go{fill:#E8B84A}.bl{fill:#7A8CE0}.pk{fill:#E86A9A}
-.hf{fill:rgba(245,244,238,.16)}.tn{fill:rgba(245,244,238,.05)}.ins{fill:rgba(245,244,238,.07)}.hs{stroke:rgba(245,244,238,.2)}.cs{stroke:#D97757}.ss{stroke:#E3C79A}.ls{stroke:#7FB069}.fs{stroke:#F5F4EE}.cf{fill:#D97757}
-.h1{fill:#8A4A36}.h2{fill:#B25E43}.h3{fill:#D97757}.h4{fill:#F0A383}`
+.h1{fill:#F2D3C6}.h2{fill:#E8A88F}.h3{fill:#D97757}.h4{fill:#A84C30}.lk{opacity:.45}`
+const DARK = `.fg{fill:#F5F4EE}.mu{fill:#C2C0B6}.cl{fill:#D97757}.sa{fill:#E3C79A}.fl{fill:#7FB069}.go{fill:#E8B84A}.bl{fill:#7A8CE0}.pk{fill:#E86A9A}
+.hf{fill:rgba(245,244,238,.22)}.tn{fill:rgba(245,244,238,.07)}.ins{fill:rgba(245,244,238,.08)}.hs{stroke:rgba(245,244,238,.3)}.cs{stroke:#D97757}.ss{stroke:#E3C79A}.ls{stroke:#7FB069}.fs{stroke:#F5F4EE}.cf{fill:#D97757}
+.h1{fill:#8A4A36}.h2{fill:#B25E43}.h3{fill:#D97757}.h4{fill:#F0A383}.lk{opacity:.7}`
 
 /** Light or dark: follow the app ('auto'), or fixed when a chosen background is light or dark. */
 export type Mode = 'auto' | 'light' | 'dark'

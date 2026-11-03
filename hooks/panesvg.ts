@@ -155,7 +155,7 @@ export const badgesSvg = (v: View, w: number): Piece => {
       y += ph + 6
     }
     s +=
-      `<g${b.got ? '' : ' opacity=".45"'}>` +
+      `<g${b.got ? '' : ' class="lk"'}>` +
       `<rect x="${x + 0.5}" y="${y + 0.5}" width="${pw - 1}" height="${ph - 1}" rx="${ph / 2}" class="tn ${b.got ? 'cs' : 'hs'}"/>` +
       text(x + pw / 2, y + 14, b.label, { cls: b.got ? 'cl' : 'fg', size: 11, anchor: 'middle' }) +
       `</g>`
