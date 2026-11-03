@@ -18,4 +18,4 @@ The status and mascot toggles are also buttons in the pane.
 
 Limits: only Write and Edit are counted (code made by shell commands is not). Comment detection is by file type and is a heuristic. Counting starts when the mod is turned on.
 
-Install for development: put or link this folder under the Claude mods folder, or start a session with `--plugin-dir <this folder>`.
+Install globally: `claude plugin marketplace add Ben-Diehlci/Claude-CodedLinesTracker` then `claude plugin install lines-tracker@claude-codedlinestracker --scope user` (the repo is private, so sign in to GitHub as Ben-Diehlci first).

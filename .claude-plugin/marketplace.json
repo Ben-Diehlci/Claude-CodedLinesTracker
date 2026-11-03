@@ -1,0 +1,7 @@
+{
+  "name": "claude-codedlinestracker",
+  "owner": { "name": "Ben-Diehlci" },
+  "plugins": [
+    { "name": "lines-tracker", "source": "./", "description": "Counts the lines of code Claude writes, with and without comments." }
+  ]
+}
