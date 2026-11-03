@@ -54,6 +54,13 @@ test('one scene per 30 s window: idle, working, night and asleep each pick from 
   expect(WORK_SCENES).toContain(at(3, { working: true }))
   expect(at(3, { night: true })).toBe('night')
   expect(at(3, { asleep: true })).toBe('nap')
+  // The day's first chat: the wake-up scene for its first 30 s (working wins), then the usual rotation.
+  const t0 = NOON_LOOP + 12_345
+  expect(sceneName({ now: t0 + 5000, working: false, night: false, asleep: false, morningAt: t0 })).toBe('morning')
+  expect(sceneName({ now: t0 + 5000, working: true, night: false, asleep: false, morningAt: t0 })).not.toBe('morning')
+  expect(sceneName({ now: t0 + 31_000, working: false, night: false, asleep: false, morningAt: t0 })).not.toBe('morning')
+  expect(day).not.toContain('morning')
+  expect(sceneSvg('morning', 400, t0 + 5000, 5000)).toMatch(/good morning!/)
   // A redraw inside one window keeps the scene.
   expect(sceneName({ now: NOON_LOOP + 2000, working: false, night: false, asleep: false })).toBe(sceneName({ now: NOON_LOOP + 29_000, working: false, night: false, asleep: false }))
 })

@@ -50,7 +50,8 @@ const REFRESH_MS = 5000
 const ACTIVE_MS = 30 * 60_000
 const HOT_MS = 15_000
 const FOLD_AGE_MS = 60 * 60_000
-const FLASH_MS = 3000
+// How long the green "+N" chip shows after a write (Ben liked it; 3 s went by too fast).
+const FLASH_MS = 6000
 const MILE_MS = 4000
 const PREFIX = 's-'
 const KEEP_DAYS = 120
@@ -250,7 +251,8 @@ let lastActive = 0
 let flashShown = false
 let mileShown = false
 let asleepShown = false
-let winShown = 0
+let winShown = ''
+let morningAt = 0
 let lastCells = ''
 let ownCache: Own | undefined
 let beats = 0
@@ -388,6 +390,17 @@ const seedModels = async ($: any, own: Own, now: number): Promise<Own> => {
   return { ...own, ml: own.life.code > 0 ? { [model]: own.life.code } : {}, mt: { d, v: today > 0 ? { [model]: today } : {} } }
 }
 
+/** The day's first chat marks the morning (in the store, shared by every chat): the stage plays its wake-up scene. */
+const checkMorning = async ($: any, now: number) => {
+  const d = dayKey(now)
+  const m = (await $.store.get('morning')) as { d: string; at: number } | undefined
+  if (m?.d === d) morningAt = m.at
+  else {
+    morningAt = now
+    await $.store.set('morning', { d, at: now })
+  }
+}
+
 // Every few seconds: show other sessions' lines, keep this session's key alive, redraw on a timed change.
 const refresh = async ($: any) => {
   const now = await $.clock.now()
@@ -403,7 +416,8 @@ const refresh = async ($: any) => {
   const flashing = now - p.at < FLASH_MS
   const miling = p.mile > 0 && now - p.mile < MILE_MS
   // A new 30 s window brings the stage's next scene (the band Svg only changes when it is redrawn).
-  const win = Math.floor(now / IDLE_MS)
+  await checkMorning($, now)
+  const win = `${Math.floor(now / IDLE_MS)}:${now - morningAt < IDLE_MS}`
   if (asleep !== asleepShown || flashing !== flashShown || miling !== mileShown || (mounted.scene && win !== winShown)) {
     winShown = win
     asleepShown = asleep
@@ -459,12 +473,13 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     asleep: now - lastActive > sleepAfter(now),
     hop: now - pu.at < HOP_MS,
     mascot: p.mascot,
-    outfit: pickOutfit(p.outfit, lv.level, now),
+    outfit: pickOutfit(p.outfit, now),
     session: s.total,
     today: t.today,
     life: t.life,
     flash: now - pu.at < FLASH_MS ? pu.n : 0,
     flashAt: pu.at,
+    morningAt,
     mile: pu.mile > 0 && now - pu.mile < MILE_MS,
     mileAt: pu.mile,
     modelsToday: top(t.modelsToday ?? {}, 8),
@@ -528,6 +543,7 @@ export const register: Register = on => {
     project = ((e as { cwd?: string }).cwd ?? '').split('/').filter(Boolean).pop() || 'session'
     const self = PREFIX + (await $.session.id())
     await fold($, self, now)
+    await checkMorning($, now)
     ownCache = ((await $.store.get(self)) as Own | undefined) ?? newOwn(now)
     ownCache = { ...(await seedModels($, ownCache, now)), t: now, proj: project }
     await $.store.set(self, ownCache)

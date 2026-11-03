@@ -368,7 +368,7 @@ test('crossing 1,000 lines throws confetti', async ($, on) => {
   await term.unmount()
 })
 
-test('sessions right now lists projects, and an outfit shows by level', async ($, on) => {
+test('sessions right now lists projects, and a chosen outfit shows', async ($, on) => {
   stubs(on)
   const day = new Date(T0)
   const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
@@ -394,7 +394,8 @@ test('sessions right now lists projects, and an outfit shows by level', async ($
   expect(await svgAlt(pane, /^Badges/)).toMatch(/Night owl earned/)
   await pane.unmount()
 
-  // LV 8 wears the crown: the Clawd Svg carries the gold crown pixels.
+  // A chosen crown: the Clawd Svg carries the gold crown pixels.
+  await $.command.run({ command: 'linecount', args: 'outfit crown' })
   const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
   expect((await bandSvg(band))?.props.source).toMatch(/#e8b84a/)
   await band.unmount()
@@ -497,4 +498,36 @@ test('a session from before model tracking gives its lines so far to the model i
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
   expect(await svgAlt(pane, /by model/)).toMatch(/today by model: Opus 5\.5 977\./)
   await pane.unmount()
+})
+
+test('the day\'s first chat marks the morning once; later chats that day keep it', async ($, on) => {
+  stubs(on)
+  const day = new Date(T0)
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  const m = memory(on, { morning: { d: '2000-01-01', at: 1 } })
+  mock.clock(on, { now: T0 })
+  // Yesterday's mark: this is the day's first chat.
+  await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
+  expect(m.get('morning')).toEqual({ d: key, at: T0 })
+  // Marked earlier today: a later chat keeps it.
+  m.set('morning', { d: key, at: T0 - 5000 })
+  await $.session.start({ cwd: '/y', surface: 'desktop', isInteractive: true })
+  expect(m.get('morning')).toEqual({ d: key, at: T0 - 5000 })
+})
+
+test('the desktop band stays under the app\'s 128 KB Svg limit with every outfit, scene and milestone at once', async ($, on) => {
+  stubs(on)
+  memory(on)
+  const clock = mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/a/big.ts', content: Array.from({ length: 1100 }, (_, i) => `const v${i} = ${i}`).join('\n') })
+  for (const outfit of ['crown', 'tophat', 'viking', 'headphones']) {
+    await $.command.run({ command: 'linecount', args: `outfit ${outfit}` })
+    for (let k = 0; k < 12; k++) {
+      const band = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 160 }, surface: 'desktop' } as any)
+      expect(((await bandSvg(band))?.props.source as string).length).toBeLessThan(131_072)
+      await band.unmount()
+      await clock.advance(30_000)
+    }
+  }
 })

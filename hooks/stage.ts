@@ -31,7 +31,7 @@ const hash = (a: number, b: number): number => {
 }
 
 /** The stage's markup in its own coordinates (0..sw by STAGE_H); the caller places it. */
-export const stageSvg = (v: View, sw: number): string => {
+export const stageSvg = (v: View, sw: number, scenes = true): string => {
   const night = isNight(v.now)
   // The pile at the right end: gold columns (1,000 each) first, then 100-line blocks in columns of three.
   const pile = pileOf(v.today.code)
@@ -62,7 +62,8 @@ export const stageSvg = (v: View, sw: number): string => {
     }
   }
 
-  o += sceneSvg(sceneName({ now: v.now, working: v.working, night, asleep: v.asleep }), end, v.now)
+  const scene = sceneName({ now: v.now, working: v.working, night, asleep: v.asleep, morningAt: v.morningAt })
+  if (scenes) o += sceneSvg(scene, end, v.now, scene === 'morning' ? v.now - v.morningAt : undefined)
 
   // The pile; after a write the new pieces drop in (a new gold column takes the place of ten blocks).
   const flashing = v.flash > 0

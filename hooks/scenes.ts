@@ -2,7 +2,7 @@
 // so the strip keeps changing. Idle scenes are "actors" sampled 10 times a second into SMIL (a move track,
 // pose frames, a fade); working scenes are plain repeating SMIL. Each starts at the wall clock's point in its
 // window, so a redraw carries on instead of restarting.
-import { grid } from './clawd'
+import { grid, pixelHex, pixelPaths } from './clawd'
 import type { Pose } from './clawd'
 import { rect, text } from './draw'
 
@@ -40,13 +40,7 @@ export const glyph = (ch: string, x: number, y: number, px: number, cls = 'mu'):
 /** Mini Clawd (2 px squares), standing on the floor at x = 0; `flip` faces him left. */
 export const mini = (st: Pose, flip = false): string => {
   const px = 2
-  let o = ''
-  grid(st).forEach((row, y) =>
-    row.forEach((c, x) => {
-      if (c === 'O') o += rect(x * px, y * px, px, px, 'cf')
-      else if (c === 'K') o += `<rect x="${x * px}" y="${y * px}" width="${px}" height="${px}" fill="#1F1E1D"/>`
-    }),
-  )
+  const o = pixelPaths(grid(st), px, c => (c === 'O' ? 'class="cf"' : `fill="${c === 'K' ? '#1F1E1D' : pixelHex(c)}"`))
   const g = flip ? `<g transform="translate(28,0) scale(-1,1)">${o}</g>` : o
 
   return `<g transform="translate(0,${FLOOR - 7 * px})">${g}</g>`
@@ -247,6 +241,55 @@ const IDLE: Record<string, (end: number) => Actor[]> = {
       { vars: [`<circle cx="0" cy="0" r="4" class="bl"/>`], at: t => ({ x: 46 + k(t) * (end - 90), y: FLOOR - 5 - Math.abs(Math.sin(t * Math.PI * 1.3)) * 14 }) },
     ]
   },
+  // The day's first chat: he wakes, stretches, gets a coffee, carries it to his desk, switches the screen on and types.
+  morning: end => {
+    const mugX = Math.max(60, end * 0.42)
+    const deskX = end - 34
+    // Where he stands at t: in bed, walking to the mug, sipping, walking to the desk, at the desk.
+    const mx = (t: number) =>
+      t < 6 ? 16 : t < 10 ? 16 + ((t - 6) / 4) * (mugX - 46) : t < 14 ? mugX - 30 : t < 18 ? mugX - 30 + ((t - 14) / 4) * (deskX - mugX - 10) : deskX - 40
+    const screen = (on: boolean) =>
+      rect(0, FLOOR - 20, 22, 15, 'fs', 2, 'fill="none"') + rect(9, FLOOR - 5, 4, 5, 'fg') +
+      (on ? rect(4, FLOOR - 17, 12, 2, 'cf') + rect(4, FLOOR - 13, 8, 2, 'mu') + rect(4, FLOOR - 9, 10, 2, 'mu') : '')
+    const mugAt = (t: number) => (t < 10 ? { x: mugX, y: FLOOR - 8 } : t < 18 ? { x: mx(t) + 22, y: FLOOR - 16 } : { x: deskX - 12, y: FLOOR - 8 })
+    return [
+      { vars: [screen(false), screen(true)], at: t => ({ x: deskX, y: 0, v: t >= 18 ? 1 : 0 }) },
+      { vars: [rect(0, 0, 7, 8, 'fg', 1) + rect(7, 2, 2, 4, 'fg')], at: mugAt },
+      ...[0, 1, 2].map(i => ({
+        vars: [rect(0, 0, 1.5, 3, 'mu')],
+        at: (t: number) => {
+          if (t >= 10 && t < 18) return null
+          const k = (t * 0.8 + i / 3) % 1
+          return { x: mugAt(t).x + 2 + Math.sin(k * 6 + i) * 2, y: FLOOR - 11 - k * 10, o: 1 - k }
+        },
+      })),
+      {
+        vars: [
+          mini({ sleep: true, sit: true }),
+          mini({ armsUp: true, blink: true }),
+          mini({ armsUp: true }),
+          mini({ armR: true }),
+          mini({ armR: true, legs: true }),
+          mini({ armR: true, blink: true }),
+          mini({ armL: true, kb: true }),
+          mini({ armR: true, kb: true }),
+        ],
+        at: t => {
+          const v = t < 4 ? 0 : t < 6 ? (Math.floor(t * 2) % 2 ? 1 : 2) : t < 10 || (t >= 14 && t < 18) ? 3 + walk(t) : t < 14 ? (Math.floor(t) % 2 ? 5 : 3) : 6 + walk(t)
+          return { x: mx(t), y: t >= 4 && t < 5 ? -2 : 0, v }
+        },
+      },
+      {
+        vars: [zzz],
+        at: t => {
+          if (t >= 4) return null
+          const z = (t % 1.6) / 1.6
+          return { x: 42 + z * 4, y: FLOOR - 12 - z * 7, o: 1 - z }
+        },
+      },
+      { vars: [text(0, 0, 'good morning!', { cls: 'sa', size: 10, bold: true })], at: t => (t >= 4 && t < 10 ? { x: 50, y: 12 } : null) },
+    ]
+  },
   night: end => [
     {
       vars: [`<line x1="0" y1="0" x2="-16" y2="-5" class="ss" stroke-width="1.5"/>`],
@@ -263,7 +306,7 @@ const IDLE: Record<string, (end: number) => Actor[]> = {
   ],
 }
 
-/** Idle scene names; "night" plays after 10 pm, "nap" when Clawd is asleep. */
+/** Idle scene names; "morning" plays once as the day's first chat starts, "night" after 10 pm, "nap" when Clawd is asleep. */
 export const IDLE_SCENES = Object.keys(IDLE)
 
 /* ---- working scenes: repeating SMIL ---- */
@@ -407,16 +450,28 @@ export const pickScene = (list: readonly string[], now: number): string => {
   return cur[w % list.length]
 }
 
-const DAY_SCENES = IDLE_SCENES.filter(n => n !== 'night')
+const DAY_SCENES = IDLE_SCENES.filter(n => n !== 'night' && n !== 'morning')
 
 /** Which scene plays now. */
-export const sceneName = (o: { now: number; working: boolean; night: boolean; asleep: boolean }): string =>
-  o.working ? pickScene(WORK_SCENES, o.now) : o.night ? 'night' : o.asleep ? 'nap' : pickScene(DAY_SCENES, o.now)
+export const sceneName = (o: { now: number; working: boolean; night: boolean; asleep: boolean; morningAt?: number }): string =>
+  o.working
+    ? pickScene(WORK_SCENES, o.now)
+    : o.morningAt !== undefined && o.now - o.morningAt >= 0 && o.now - o.morningAt < SCENE_MS
+      ? 'morning'
+      : o.night
+        ? 'night'
+        : o.asleep
+          ? 'nap'
+          : pickScene(DAY_SCENES, o.now)
 
-/** The scene's markup for a strip `end` px wide, started at the wall clock's point in its window. */
-export const sceneSvg = (name: string, end: number, now: number): string => {
+/**
+ * The scene's markup for a strip `end` px wide, started at the wall clock's point in its window
+ * (or `since` ms after its own start, for the morning scene, which begins when the day's first chat does).
+ */
+export const sceneSvg = (name: string, end: number, now: number, since?: number): string => {
   if (WORK[name]) return WORK[name](end, now)
   if (!IDLE[name] || end <= 90) return ''
+  const phase = since ?? now % SCENE_MS
 
-  return IDLE[name](end).map(a => track(a, now % SCENE_MS)).join('')
+  return IDLE[name](end).map(a => track(a, phase)).join('')
 }

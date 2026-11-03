@@ -1,5 +1,6 @@
 // The numbers behind every design: plain functions, no drawing. A design only draws a View.
 import type { Counts, Prefs, Row, Totals } from '../types'
+import { OUTFITS } from './clawd'
 import type { Outfit } from './clawd'
 
 export const EMPTY: Counts = { all: 0, code: 0, comments: 0, blank: 0 }
@@ -31,7 +32,7 @@ export const BACKGROUNDS = [
 
 export const backgroundOf = (id: string) => BACKGROUNDS.find(b => b.id === id) ?? BACKGROUNDS[0]
 
-export const OUTFIT_CHOICES = ['auto', 'none', 'party', 'shades', 'crown', 'night'] as const
+export const OUTFIT_CHOICES = ['auto', ...OUTFITS] as const
 
 export const defaultPrefs = (): Prefs => ({
   status: true,
@@ -96,12 +97,23 @@ export const levelOf = (lifeCode: number) => {
   return { level, xp: into / LEVEL_LINES, toNext: LEVEL_LINES - into, next: level * LEVEL_LINES }
 }
 
-/** Outfit by level: LV 3 party hat, LV 5 shades, LV 7 crown; after 10 pm a nightcap. */
-export const pickOutfit = (pref: string, level: number, now: number): Outfit => {
-  if (pref !== 'auto') return (OUTFIT_CHOICES as readonly string[]).includes(pref) ? (pref as Outfit) : 'none'
-  if (isNight(now)) return 'night'
+/** Outfits "auto" puts on by day (the nightcap is kept for after 10 pm). */
+const DAILY = OUTFITS.filter(o => o !== 'none' && o !== 'night')
 
-  return level >= 7 ? 'crown' : level >= 5 ? 'shades' : level >= 3 ? 'party' : 'none'
+/**
+ * Outfit for "auto": a new one each day, the same all day, and about one day in four without any;
+ * after 10 pm the nightcap. A fixed choice is kept as it is.
+ */
+export const pickOutfit = (pref: string, now: number): Outfit => {
+  if (pref !== 'auto') return (OUTFITS as string[]).includes(pref) ? (pref as Outfit) : 'none'
+  if (isNight(now)) return 'night'
+  const d = new Date(now)
+  const n = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000)
+  // A shuffle of the days so neighbours differ: a big odd step through the outfits plus a few plain days.
+  const slots = DAILY.length + Math.ceil(DAILY.length / 3)
+  const k = (n * 7 + Math.floor(n / slots) * 3) % slots
+
+  return k < DAILY.length ? DAILY[k] : 'none'
 }
 
 /** Days in a row with code, counting back from today (or from yesterday if today is still empty), and the best run seen. */
@@ -170,6 +182,8 @@ export type View = {
   life: Counts
   /** Code lines of the last write while its +N chip shows, else 0. */
   flash: number
+  /** When the day's first chat started (ms): the stage's morning scene plays for 30 s from then. */
+  morningAt: number
   /** When the last write landed (ms), for the stage's falling blocks. */
   flashAt: number
   /** True while the milestone confetti and glow show. */

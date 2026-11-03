@@ -63,7 +63,7 @@ export type Prefs = {
   mascot: boolean
   /** Band design id: auto, classic, card, arcade or compact. */
   style: string
-  /** Clawd's outfit: auto (by level), none, party, shades, crown or night. */
+  /** Clawd's outfit: auto (a new one each day, some days none; nightcap after 10 pm), none, or one by name (clawd.ts LOOKS). */
   outfit: string
   /** Pane background id: none (the app's own), paper, sand, blush, slate or night. */
   bg: string

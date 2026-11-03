@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { clawdBody, grid, LOOP_MS, mark, TRICKS } from './clawd'
+import { canvasH, clawdBody, grid, LOOP_MS, mark, OUTFITS, TRICKS } from './clawd'
 import { badgesOf, bestDay, heat, levelOf, mergePrefs, modelName, pickOutfit, streaks } from './model'
 
 const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
@@ -16,14 +16,29 @@ test('level is one per 2,500 lifetime lines', () => {
   expect(levelOf(18_930)).toMatchObject({ level: 8, toNext: 1070, next: 20_000 })
 })
 
-test('outfit by level, fixed choice, and nightcap after 10 pm', () => {
-  const night = new Date(2026, 10, 3, 23).getTime()
-  expect(pickOutfit('auto', 2, NOON)).toBe('none')
-  expect(pickOutfit('auto', 3, NOON)).toBe('party')
-  expect(pickOutfit('auto', 5, NOON)).toBe('shades')
-  expect(pickOutfit('auto', 7, NOON)).toBe('crown')
-  expect(pickOutfit('auto', 7, night)).toBe('night')
-  expect(pickOutfit('shades', 1, night)).toBe('shades')
+test('auto outfit: a new one each day (never the same two days running), some plain days, the nightcap after 10 pm', () => {
+  const days = Array.from({ length: 60 }, (_, i) => pickOutfit('auto', new Date(2026, 10, 3 + i, 12).getTime()))
+  days.slice(1).forEach((o, i) => expect(o).not.toBe(days[i]))
+  expect(new Set(days).size).toBeGreaterThan(15)
+  const plain = days.filter(o => o === 'none').length
+  expect(plain).toBeGreaterThan(5)
+  expect(plain).toBeLessThan(25)
+  expect(days).not.toContain('night')
+  // The same all day.
+  expect(pickOutfit('auto', new Date(2026, 10, 3, 8).getTime())).toBe(pickOutfit('auto', new Date(2026, 10, 3, 21).getTime()))
+  expect(pickOutfit('auto', new Date(2026, 10, 3, 23).getTime())).toBe('night')
+  expect(pickOutfit('shades', new Date(2026, 10, 3, 23).getTime())).toBe('shades')
+  expect(pickOutfit('nonsense', NOON)).toBe('none')
+})
+
+test('every outfit draws: hats above, face and body pieces over him', () => {
+  for (const o of OUTFITS) {
+    const g = grid({}, o)
+    expect(g.length).toBe(canvasH(o))
+    expect(g.every(r => r.length === 14)).toBe(true)
+  }
+  expect(grid({}, 'mustache').some(r => r.join('').includes('OKKKKO'))).toBe(true)
+  expect(OUTFITS.length).toBeGreaterThan(19)
 })
 
 test('streak counts back from today, or from yesterday while today is empty', () => {

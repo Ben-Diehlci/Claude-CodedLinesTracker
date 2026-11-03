@@ -24,7 +24,8 @@ const when = (day: string): string =>
 
 /** Clawd in his outfit, "Lines Crab LV n", lifetime and lines to the next level, an XP bar. */
 export const headerSvg = (v: View, w: number): Piece => {
-  const px = 6
+  // A smaller Clawd in a narrow pane, so the words beside him keep their room.
+  const px = w < 300 ? 4 : 6
   const ch = canvasH(v.outfit) * px
   const h = Math.max(60, ch)
   const tx = v.mascot ? 14 * px + 12 : 0
@@ -32,7 +33,9 @@ export const headerSvg = (v: View, w: number): Piece => {
   if (v.mascot) s += `<g transform="translate(0,${(h - ch) / 2})">${clawdBody(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit, now: v.now })}</g>`
   s += text(tx, h / 2 - 8, 'Lines Crab', { cls: 'fg', size: 16, bold: true })
   s += text(tx + est('Lines Crab', 16, true) + 6, h / 2 - 8, `LV ${v.level}`, { cls: 'mu', size: 13 })
-  s += text(tx, h / 2 + 10, `${fmt(v.life.code)} lifetime, ${fmt(v.toNext)} to LV ${v.level + 1}`, { cls: 'mu', size: 12 })
+  const full = `${fmt(v.life.code)} lifetime, ${fmt(v.toNext)} to LV ${v.level + 1}`
+  const line = est(full, 12) <= w - tx ? full : `${fmt(v.toNext)} to LV ${v.level + 1}`
+  s += text(tx, h / 2 + 10, line, { cls: 'mu', size: Math.min(12, fit(line, w - tx) + 1) })
   const bw = w - tx
   s += rect(tx, h / 2 + 17, bw, 6, 'hf', 3) + rect(tx, h / 2 + 17, Math.max(6, bw * v.xp), 6, 'cf', 3)
 
@@ -75,24 +78,29 @@ const slices = (models: [string, number][], earlier: number, earlierName: string
 
 /** Two hairline cards: today's code lines by model (every session), and all time by model. */
 export const ringsSvg = (v: View, w: number): Piece => {
-  // Two cards side by side, each at most 320 px so a wide pane does not stretch them thin.
-  const cw = Math.min(320, (w - 10) / 2)
+  // Two cards side by side, each at most 320 px so a wide pane does not stretch them thin;
+  // one above the other when the pane is too narrow for two.
+  const stacked = (w - 10) / 2 < 170
+  const cw = stacked ? Math.min(320, w) : Math.min(320, (w - 10) / 2)
   const room = cw - 72
   const cards = [
     { big: v.today.code, cap: 'lines today, by model', sl: slices(v.modelsToday, v.earlierToday, 'earlier') },
     { big: v.life.code, cap: 'lines all time, by model', sl: slices(v.modelsLife, v.earlierLife, 'earlier') },
   ].map(c => ({ ...c, key: legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])) }))
-  const h = Math.max(64, 44 + Math.max(...cards.map(c => c.key.rows)) * 14)
+  const ch = Math.max(64, 44 + Math.max(...cards.map(c => c.key.rows)) * 14)
+  const h = stacked ? 2 * ch + 8 : ch
   let s = ''
   cards.forEach((c, i) => {
-    const x = i * (cw + 10)
+    const x = stacked ? 0 : i * (cw + 10)
+    const y = stacked ? i * (ch + 8) : 0
+    s += `<g transform="translate(0,${y})">`
     const caption = est(c.cap, 11) <= room ? c.cap : c.cap.replace(', by model', '')
     s +=
-      `<rect x="${x + 0.5}" y="0.5" width="${cw - 1}" height="${h - 1}" rx="10" fill="none" class="hs"/>` +
-      donut(x + 32, h / 2, 18, c.sl.map(([, n, , st]) => [n, st] as [number, string]), 6) +
+      `<rect x="${x + 0.5}" y="0.5" width="${cw - 1}" height="${ch - 1}" rx="10" fill="none" class="hs"/>` +
+      donut(x + 32, ch / 2, 18, c.sl.map(([, n, , st]) => [n, st] as [number, string]), 6) +
       text(x + 62, 25, fmt(c.big), { cls: 'fg', size: 20, bold: true }) +
       text(x + 62, 40, caption, { cls: 'mu', size: 11 }) +
-      `<g transform="translate(${x + 62},${55})">${legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])).s}</g>`
+      `<g transform="translate(${x + 62},${55})">${legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])).s}</g></g>`
   })
   const said = (sl: [string, number, string, string][]) => sl.map(([n, k]) => `${n} ${fmt(k)}`).join(', ')
 

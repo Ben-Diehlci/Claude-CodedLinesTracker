@@ -17,19 +17,44 @@ const DEFAULT = 0x01000000 // the terminal's own color
 /** The pixel canvas: 14 wide (a spare column each side for the dance); 8 tall, 10 with a hat (hop and sit room). */
 export const W = 14
 
-export type Outfit = 'none' | 'party' | 'shades' | 'crown' | 'night'
-export const OUTFITS: Outfit[] = ['none', 'party', 'shades', 'crown', 'night']
+/**
+ * Outfits: rows drawn above his head (hat), and rows laid over his body (face and body pieces; only
+ * the letters replace, dots leave him as he is). Body rows: 0 top, 1-2 eyes (2 has the arms), 3 belly, 4-5 legs.
+ * Letters: P pink, Y gold, B blue, R red, L green, T brown, K black, N grey, E light grey, G mid grey
+ * (no pure white: it vanishes on a light background).
+ */
+type Look = { hat: string[]; over?: Record<number, string> }
+const LOOKS = {
+  none: { hat: [] },
+  party: { hat: ['......P.....', '.....PPP....'] },
+  shades: { hat: [], over: { 1: '..KKKKKKKK..', 2: '...KK..KK...' } },
+  crown: { hat: ['..Y..YY..Y..', '..YYYYYYYY..'] },
+  night: { hat: ['....BBBBBBE.', '..BBBBBBBB..'] },
+  tophat: { hat: ['...NNNNNN...', '.NNNNNNNNNN.'] },
+  cowboy: { hat: ['....TTTT....', 'TTTTTTTTTTTT'] },
+  beanie: { hat: ['.....E......', '...RRRRRR...'] },
+  cap: { hat: ['...BBBBBB...', '..BBBBBBBBBB'] },
+  chef: { hat: ['...GEEEEG...', '...GEEEEG...'] },
+  propeller: { hat: ['..YYY.YYY...', '.....R......'] },
+  flower: { hat: ['........P...', '.......PYP..'] },
+  headphones: { hat: ['...NNNNNN...', '..N......N..'], over: { 1: '.N........N.' } },
+  bow: { hat: ['.......P.P..', '........P...'] },
+  wizard: { hat: ['.....BY.....', '...BBBBBB...'] },
+  viking: { hat: ['.E........E.', '..EYYYYYYE..'] },
+  halo: { hat: ['...YYYYYY...', '............'] },
+  santa: { hat: ['.......RRE..', '..RRRRRRR...'] },
+  bandana: { hat: ['..........R.', '..RRRRRRRRR.'] },
+  mustache: { hat: [], over: { 3: '....KKKK....' } },
+  bowtie: { hat: [], over: { 3: '....RRRR....' } },
+  scarf: { hat: [], over: { 3: '..LLLLLLLL..', 4: '..L.........' } },
+} satisfies Record<string, Look>
 
-const HATS: Record<Outfit, string[]> = {
-  none: [],
-  shades: [],
-  party: ['......P.....', '.....PPP....'],
-  crown: ['..Y..YY..Y..', '..YYYYYYYY..'],
-  night: ['....BBBBBBW.', '..BBBBBBBB..'],
-}
+export type Outfit = keyof typeof LOOKS
+export const OUTFITS = Object.keys(LOOKS) as Outfit[]
+const look = (o: Outfit): Look => LOOKS[o] ?? LOOKS.none
 
 /** Canvas height in pixels for an outfit. */
-export const canvasH = (o: Outfit = 'none'): number => HATS[o].length + 8
+export const canvasH = (o: Outfit = 'none'): number => look(o).hat.length + 8
 /** Terminal size: two pixels per cell row. */
 export const cellRows = (o: Outfit = 'none'): number => canvasH(o) / 2
 
@@ -68,24 +93,24 @@ const BASE = [
 const LEGS_B = '...O.O..O.O.'
 
 const sprite = (st: Pose, outfit: Outfit): string[][] => {
-  const b = HATS[outfit].length
-  let m = [...HATS[outfit], ...BASE].map(r => r.split(''))
+  const b = look(outfit).hat.length
+  let m = [...look(outfit).hat, ...BASE].map(r => r.split(''))
   if (st.legs) m[b + 5] = LEGS_B.split('')
   const ex = st.eyeDx ?? 0
-  if (outfit === 'shades') {
-    m[b + 1] = '..KKKKKKKK..'.split('')
-    for (const x of [3, 4, 7, 8]) m[b + 2][x] = 'K'
-  } else {
-    for (const y of [1, 2]) {
-      m[b + y][3] = 'O'
-      m[b + y][8] = 'O'
-      m[b + y][3 + ex] = 'K'
-      m[b + y][8 + ex] = 'K'
-    }
-    if (st.blink || st.sleep) {
-      m[b + 1][3 + ex] = 'O'
-      m[b + 1][8 + ex] = 'O'
-    }
+  for (const y of [1, 2]) {
+    m[b + y][3] = 'O'
+    m[b + y][8] = 'O'
+    m[b + y][3 + ex] = 'K'
+    m[b + y][8 + ex] = 'K'
+  }
+  if (st.blink || st.sleep) {
+    m[b + 1][3 + ex] = 'O'
+    m[b + 1][8 + ex] = 'O'
+  }
+  for (const [row, line] of Object.entries(look(outfit).over ?? {})) {
+    ;[...line].forEach((c, x) => {
+      if (c !== '.') m[b + Number(row)][x] = c
+    })
   }
   const left = st.armsUp || st.armL
   const right = st.armsUp || st.waveR || st.armR
@@ -259,7 +284,7 @@ export const pack = (cells: [number, number, number][]): string => {
   return b64(new Uint8Array(words.buffer))
 }
 
-const COLORS: Record<string, number> = { K: EYE, P: PINK, Y: GOLD, B: BLUE, W: WHITE, G: DIM }
+const COLORS: Record<string, number> = { K: EYE, P: PINK, Y: GOLD, B: BLUE, W: WHITE, G: DIM, R: 0xe05a4f, L: FLASH, T: 0x9a6b3f, N: 0x6b6a64, E: 0xd3d1c7 }
 const color = (c: string) => COLORS[c] ?? CLAY
 
 /** Clawd as Raster `cells`: W columns by cellRows(outfit) rows. */
@@ -356,13 +381,30 @@ const timeline = (o: Opts): { pose: Pose; from: number; to: number }[] => {
   return out
 }
 
+/** A pose letter's color as #rrggbb. */
+export const pixelHex = (c: string): string => hex(color(c))
+
+/**
+ * A pixel grid as one path per letter, each run of the same letter in a row one rectangle: far smaller
+ * than a rect per pixel (the app refuses an Svg over 128 KB, and a band holds many poses).
+ */
+export const pixelPaths = (g: string[][], px: number, paint: (c: string) => string): string => {
+  const by = new Map<string, string>()
+  g.forEach((row, y) => {
+    for (let x = 0; x < row.length; ) {
+      const c = row[x]
+      let e = x + 1
+      while (e < row.length && row[e] === c) e++
+      if (c !== '.') by.set(c, (by.get(c) ?? '') + `M${x * px} ${y * px}h${(e - x) * px}v${px}h${-(e - x) * px}z`)
+      x = e
+    }
+  })
+
+  return [...by].map(([c, d]) => `<path d="${d}" ${paint(c)}/>`).join('')
+}
+
 const drawPose = (st: Pose, px: number, outfit: Outfit): string => {
-  let s = ''
-  grid(st, outfit).forEach((row, y) =>
-    row.forEach((c, x) => {
-      if (c !== '.') s += `<rect x="${x * px}" y="${y * px}" width="${px}" height="${px}" fill="${hex(color(c))}"/>`
-    }),
-  )
+  let s = pixelPaths(grid(st, outfit), px, c => `fill="${hex(color(c))}"`)
   const mk = mark(st)
   if (mk) {
     s += `<text x="${(W - 1.6) * px}" y="${px * 1.7}" fill="${hex(mk.color)}" font-size="${px * 1.7}" font-family="monospace">${mk.ch}</text>`
