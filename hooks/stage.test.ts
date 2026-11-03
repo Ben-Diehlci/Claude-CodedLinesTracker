@@ -12,7 +12,6 @@ const view = (o: Record<string, unknown> = {}) =>
     working: false,
     asleep: false,
     today: { all: 0, code: 0, comments: 0, blank: 0 },
-    goal: 500,
     flash: 0,
     flashAt: 0,
     mile: false,
@@ -22,12 +21,12 @@ const view = (o: Record<string, unknown> = {}) =>
 
 const code = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
 
-test('one block per 25 lines of a 500-line goal; past the goal they turn gold', () => {
-  expect(pileOf(0, 500)).toBe(0)
-  expect(pileOf(312, 500)).toBe(12)
-  expect(pileOf(600, 500)).toBe(24)
-  const met = stageSvg(view({ today: code(600) }), 400)
-  expect((met.match(/class="go"/g) ?? []).length).toBe(4)
+test('one block per 100 lines today; every tenth (each 1,000) is gold', () => {
+  expect(pileOf(0)).toBe(0)
+  expect(pileOf(312)).toBe(3)
+  expect(pileOf(2928)).toBe(29)
+  const s = stageSvg(view({ today: code(2928) }), 400)
+  expect((s.match(/class="go"/g) ?? []).length).toBe(2)
 })
 
 test('working runs the code belt; idle brings the bug and mini Clawd; night puts out the moon', () => {
@@ -44,9 +43,9 @@ test('working runs the code belt; idle brings the bug and mini Clawd; night puts
 
 test('a write drops the new blocks in and zips the +N chip; a milestone sets off fireworks', () => {
   const now = NOON_LOOP + 5000
-  const s = stageSvg(view({ now, today: code(100), flash: 50, flashAt: now - 100 }), 400)
-  expect((s.match(/attributeName="y" from="-10"/g) ?? []).length).toBe(2) // 50..100 lines = blocks 2 and 3
-  expect(s).toMatch(/>\+50</)
+  const s = stageSvg(view({ now, today: code(400), flash: 250, flashAt: now - 100 }), 400)
+  expect((s.match(/attributeName="y" from="-10"/g) ?? []).length).toBe(3) // 150 -> 400 lines = blocks 2, 3 and 4
+  expect(s).toMatch(/>\+250</)
   const m = stageSvg(view({ now, mile: true, mileAt: now - 200 }), 400)
   expect((m.match(/opacity="0"><animate attributeName="opacity" values="1;0"/g) ?? []).length).toBe(42)
 })

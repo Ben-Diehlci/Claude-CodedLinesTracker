@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { clawdBody, LOOP_MS } from './clawd'
-import { badgesOf, bestDay, heat, levelOf, mergePrefs, pickOutfit, streaks } from './model'
+import { badgesOf, bestDay, heat, levelOf, mergePrefs, modelName, pickOutfit, streaks } from './model'
 
 const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
 const NOON = new Date(2026, 10, 3, 12).getTime()
@@ -43,7 +43,7 @@ test('badges come from the data', () => {
 test('heat levels and prefs-1 values surviving the merge', () => {
   expect([0, 1, 50, 100].map(v => heat(v, 100))).toEqual([0, 1, 2, 4])
   const merged = mergePrefs({ status: false, pane: true, mascot: false } as any)
-  expect(merged).toMatchObject({ status: false, mascot: false, style: 'auto', outfit: 'auto', goal: 500 })
+  expect(merged).toMatchObject({ status: false, mascot: false, style: 'auto', outfit: 'auto' })
   expect(merged.sections.numbers).toBe(false)
   expect(Object.entries(merged.sections).filter(([k]) => k !== 'numbers').every(([, on]) => on)).toBe(true)
 })
@@ -61,4 +61,13 @@ test('Clawd keeps his place in the 90 s loop across redraws', () => {
   expect(a.split('<g visibility').length - 1).toBeGreaterThan(4)
   // A hop plays from the start.
   expect(clawdBody(4, { ...o, hop: true, now: at })).not.toMatch(/begin=/)
+})
+
+test('model ids read as short names', () => {
+  expect(modelName('claude-opus-5-5')).toBe('Opus 5.5')
+  expect(modelName('claude-sonnet-4-20250514')).toBe('Sonnet 4')
+  expect(modelName('claude-3-5-haiku-20241022')).toBe('Haiku')
+  expect(modelName('sonnet')).toBe('Sonnet')
+  expect(modelName('claude-fable-5-1[1m]')).toBe('Fable 5.1')
+  expect(modelName('')).toBe('Unknown')
 })

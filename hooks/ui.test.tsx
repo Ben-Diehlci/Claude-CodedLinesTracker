@@ -68,6 +68,7 @@ const stubs = (on: any) => {
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('tool.call', () => ({ result: {} }))
   on('session.id', () => ({ value: 'me' }))
+  on('session.model', () => ({ value: 'claude-opus-5-5' }))
 }
 
 const WRITE = { tool: 'Write', file_path: '/a/x.ts', content: '// c\nconst a = 1\n\nconst b = 2' } as const
@@ -83,7 +84,7 @@ test('pane and band draw on every surface', async ($, on) => {
   for (const surface of SURFACES) {
     const pane = await $.ui.mount({ ...PANE, surface })
     if (surface === 'terminal') expect((await pane.find({ type: 'Text', text: /LINES CRAB/ }))?.text).toMatch(/LV 1/)
-    else expect((await svgAlt(pane, /code lines this session,/))).toMatch(/^2 code lines this session/)
+    else expect((await svgAlt(pane, /by model/))).toMatch(/^2 code lines today by model: Opus 5\.5 2/)
     await pane.unmount()
 
     const band = await $.ui.mount({ ...BAND, surface } as any)
@@ -180,7 +181,7 @@ test('auto picks card, or compact when the band is narrow', async ($, on) => {
   await narrow.unmount()
 })
 
-test('commands: style, outfit, goal and section', async ($, on) => {
+test('commands: style, outfit and section; the goal is gone', async ($, on) => {
   stubs(on)
   const m = memory(on)
   mock.clock(on, { now: T0 })
@@ -190,14 +191,14 @@ test('commands: style, outfit, goal and section', async ($, on) => {
   expect((await run('style arcade')).text).toMatch(/arcade/)
   expect((await run('style nonsense')).text).toMatch(/one of/)
   expect((await run('outfit crown')).text).toMatch(/crown/)
-  expect((await run('goal 750')).text).toMatch(/750/)
-  expect((await run('goal abc')).text).toMatch(/number/)
+  expect((await run('goal 750')).text).toMatch(/removed/)
   expect((await run('section heat off')).text).toMatch(/off/)
   expect((await run('section heat')).text).toMatch(/on/)
   await run('section badges off')
 
   const saved = m.get('prefs') as any
-  expect(saved).toMatchObject({ style: 'arcade', outfit: 'crown', goal: 750 })
+  expect(saved).toMatchObject({ style: 'arcade', outfit: 'crown' })
+  expect(saved.goal).toBeUndefined()
   expect(saved.sections.badges).toBe(false)
   expect(saved.sections.heat).toBe(true)
 
@@ -215,6 +216,9 @@ test('commands: style, outfit, goal and section', async ($, on) => {
   expect((await again.find({ type: 'Text', text: /blank, not counted/ }))?.text).toMatch(/0 blank/)
   expect(await again.find({ type: 'Text', text: /BADGES/ })).toBeFalsy()
   await again.unmount()
+  const desk = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect((await desk.findAll({ type: 'Svg' })).length).toBeGreaterThan(0)
+  await desk.unmount()
 })
 
 test('old prefs keep their toggles when the shape grows', async ($, on) => {
@@ -227,7 +231,7 @@ test('old prefs keep their toggles when the shape grows', async ($, on) => {
   const labels = await buttons(pane)
   expect(labels).toContain(' Pane on start: off')
   expect(labels).toContain(' Mascot: off')
-  expect(labels).toContain(' Goal: 500')
+  expect(labels.some(l => /Goal/.test(l))).toBe(false)
   expect((await pane.findAll({ type: 'Select' })).map((x: any) => x.props.value)).toEqual(['auto', 'auto', 'none'])
   await pane.unmount()
 })
@@ -447,4 +451,28 @@ test('totals add up every session; the band shows the others live', async ($, on
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
   expect(await pane.find({ type: 'Text', text: /idle-project/ })).toBeFalsy()
   await pane.unmount()
+})
+
+test('the ring cards split lines by model: today across sessions, all time with the lines from before tracking', async ($, on) => {
+  stubs(on)
+  const day = new Date(T0)
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  memory(on, {
+    's-other': { t: T0 - 1000, w: T0 - 2000, proj: 'web-app', life: c(300), days: { [key]: c(300) }, hours: { d: key, v: [] }, owl: false, exts: [], ml: { 'Sonnet 5.5': 300 }, mt: { d: key, v: { 'Sonnet 5.5': 300 } } },
+    base: { life: c(5000), days: {}, folded: [] },
+  })
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  const alt = await svgAlt(pane, /by model/)
+  expect(alt).toMatch(/today by model: Sonnet 5\.5 300, Opus 5\.5 2\./)
+  expect(alt).toMatch(/all time: Sonnet 5\.5 300, Opus 5\.5 2, before Nov 3 5,000/)
+  await pane.unmount()
+
+  const term = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
+  expect((await term.find({ type: 'Text', text: /lines today/ }))?.text).toMatch(/Opus 5\.5 2/)
+  await term.unmount()
 })

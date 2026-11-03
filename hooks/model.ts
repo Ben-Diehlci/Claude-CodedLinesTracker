@@ -5,7 +5,6 @@ import type { Outfit } from './clawd'
 export const EMPTY: Counts = { all: 0, code: 0, comments: 0, blank: 0 }
 export const LEVEL_LINES = 2500
 export const MILESTONE = 1000
-export const DEFAULT_GOAL = 500
 /** Weeks the heat map shows (Ben: 4 instead of 12). */
 export const HEAT_WEEKS = 4
 
@@ -40,7 +39,6 @@ export const defaultPrefs = (): Prefs => ({
   mascot: true,
   style: 'auto',
   outfit: 'auto',
-  goal: DEFAULT_GOAL,
   bg: 'none',
   lookOpen: false,
   sections: Object.fromEntries(SECTIONS.map(s => [s.id, !('off' in s)])),
@@ -52,6 +50,26 @@ export const mergePrefs = (saved: Partial<Prefs> | undefined): Prefs => {
   if (!saved) return d
 
   return { ...d, ...saved, sections: { ...d.sections, ...(saved.sections ?? {}) } }
+}
+
+/** A model id or alias as a short name: claude-opus-5-5 -> "Opus 5.5", sonnet -> "Sonnet". */
+export const modelName = (id: string): string => {
+  const m = /(opus|sonnet|haiku|fable)(?:[-_ ]?(\d{1,2})(?!\d)(?:[-.](\d{1,2})(?!\d))?)?/i.exec(id)
+  if (!m) return id ? id.replace(/^claude-/, '') : 'Unknown'
+  const fam = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()
+
+  return m[2] ? `${fam} ${m[2]}${m[3] ? '.' + m[3] : ''}` : fam
+}
+
+/** Ring and key colors (stroke class, fill class) by model family; "earlier" lines are the hairline grey. */
+export const modelColor = (name: string): { stroke: string; fill: string } => {
+  const f = name.split(' ')[0]
+  if (f === 'Opus') return { stroke: 'cs', fill: 'cf' }
+  if (f === 'Sonnet') return { stroke: 'ss', fill: 'sa' }
+  if (f === 'Haiku') return { stroke: 'ls', fill: 'fl' }
+  if (f === 'Fable') return { stroke: 'bs', fill: 'bl' }
+
+  return { stroke: 'ps', fill: 'pk' }
 }
 
 export const fmt = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -157,8 +175,12 @@ export type View = {
   /** True while the milestone confetti and glow show. */
   mile: boolean
   mileAt: number
-  goal: number
-  goalFrac: number
+  /** Code lines by model, biggest first: today (every session) and since tracking began, plus older lines. */
+  modelsToday: [string, number][]
+  modelsLife: [string, number][]
+  /** Code lines today and all time from before per-model tracking (2026-11-03). */
+  earlierToday: number
+  earlierLife: number
   level: number
   xp: number
   toNext: number

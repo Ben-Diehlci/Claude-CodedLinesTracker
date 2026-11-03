@@ -36,7 +36,7 @@ export const mileLabel = (v: View): string => `${fmt(Math.floor(v.life.code / MI
 
 export const summary = (v: View): string =>
   `${fmt(v.session.code)} code lines this session, ${fmt(v.session.all)} with comments. ` +
-  `${fmt(v.today.code)} of ${fmt(v.goal)} today, ${fmt(v.life.code)} all time, level ${v.level}.`
+  `${fmt(v.today.code)} today, ${fmt(v.life.code)} all time, level ${v.level}.`
 
 /** Clawd placed inside a band Svg at (x, y), px pixels per square. */
 export const clawdAt = (v: View, x: number, y: number, px: number): string =>

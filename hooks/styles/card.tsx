@@ -1,7 +1,7 @@
 // A: a hairline rounded card, big numbers, Clawd's stage (things happen while you work), session dots.
 import { fmt } from '../model'
 import type { View } from '../model'
-import { confetti, dots, est, goalBar, rect, text } from '../draw'
+import { confetti, dots, est, rect, text } from '../draw'
 import { stageSvg } from '../stage'
 import { CLAY, FLASH, SAND, bandSvg, bandWidth, clawdAt, clawdHeight, clawdWidth, mileLabel } from './common'
 import type { Design } from './common'
@@ -74,7 +74,7 @@ export const card: Design = {
           )}
         </Text>
         <Box>
-          {stage ?? <Text color={CLAY}>{goalBar(v.goalFrac, 14)}</Text>}
+          {stage}
           <Text>
             <Text bold>{` ${fmt(v.today.code)}`}</Text>
             <Text dimColor>{' lines today  '}</Text>

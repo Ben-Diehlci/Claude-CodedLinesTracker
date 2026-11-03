@@ -48,6 +48,10 @@ export type Totals = {
   owl: boolean
   /** How many different file types were ever written (the Polyglot badge). */
   exts: number
+  /** Code lines today per model ("Opus 5.5"), every session. */
+  modelsToday: Record<string, number>
+  /** Code lines per model since tracking began (2026-11-03); life.code less their sum came before. */
+  modelsLife: Record<string, number>
 }
 
 /** The last write: when, how many code lines (the +N flash), and when a 1,000 milestone was crossed. */
@@ -61,8 +65,6 @@ export type Prefs = {
   style: string
   /** Clawd's outfit: auto (by level), none, party, shades, crown or night. */
   outfit: string
-  /** Daily goal in code lines. */
-  goal: number
   /** Pane background id: none (the app's own), paper, sand, blush, slate or night. */
   bg: string
   /** On a filled pane: whether the settings are shown (below the pane), or tucked behind one Settings button. */

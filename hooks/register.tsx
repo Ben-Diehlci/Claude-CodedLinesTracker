@@ -19,7 +19,6 @@ import { stageCells, stageLive } from './stage'
 import type { StageLive } from './stage'
 import {
   BACKGROUNDS,
-  DEFAULT_GOAL,
   EMPTY,
   backgroundOf,
   MILESTONE,
@@ -32,6 +31,7 @@ import {
   fmt,
   isNight,
   levelOf,
+  modelName,
   mergePrefs,
   pickOutfit,
   streaks,
@@ -83,9 +83,11 @@ const noTotals = (): Totals => ({
   list: [],
   owl: false,
   exts: 0,
+  modelsToday: {},
+  modelsLife: {},
 })
 const totals = atom({ plugin: 'lines-tracker', key: 'totals' } as const, noTotals(), {
-  shape: 'totals-3',
+  shape: 'totals-4',
 })
 const pulse = atom({ plugin: 'lines-tracker', key: 'pulse' } as const, { at: 0, n: 0, mile: 0 } as Pulse, {
   shape: 'pulse-2',
@@ -97,6 +99,8 @@ const add = (a: Counts, b: Counts): Counts => ({
   comments: a.comments + b.comments,
   blank: a.blank + b.blank,
 })
+
+const sum = (m: Record<string, number> | undefined): number => Object.values(m ?? {}).reduce((t, n) => t + n, 0)
 
 const top = (map: Record<string, number>, n: number): [string, number][] =>
   Object.entries(map)
@@ -118,14 +122,24 @@ type Own = {
   hours: { d: string; v: number[] }
   owl: boolean
   exts: string[]
+  /** Code lines per model, lifetime, and for the day `d`. */
+  ml?: Record<string, number>
+  mt?: { d: string; v: Record<string, number> }
   /** This session's own stats, a copy of the session atom (memory), so a chat the app put to sleep gets them back. */
   s?: Stats
 }
-type Base = { life: Counts; days: Record<string, Counts>; folded: string[]; owl?: boolean; exts?: string[] }
+type Base = { life: Counts; days: Record<string, Counts>; folded: string[]; owl?: boolean; exts?: string[]; models?: Record<string, number> }
 
 const keepDays = (days: Record<string, Counts>, n: number): Record<string, Counts> => {
   const out: Record<string, Counts> = {}
   for (const k of Object.keys(days).sort().slice(-n)) out[k] = days[k]
+
+  return out
+}
+
+const addMap = (a: Record<string, number>, b: Record<string, number> | undefined): Record<string, number> => {
+  const out = { ...a }
+  for (const [k, n] of Object.entries(b ?? {})) out[k] = (out[k] ?? 0) + n
 
   return out
 }
@@ -154,6 +168,8 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
   const hours: number[] = Array(24).fill(0)
   let owl = base.owl ?? false
   let exts = base.exts ?? []
+  let modelsLife = base.models ?? {}
+  let modelsToday: Record<string, number> = {}
   const list: Row[] = []
   let sessions = 0
   for (const k of (await $.store.keys()) as string[]) {
@@ -165,6 +181,8 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     if (o.hours?.d === today) o.hours.v.forEach((n, i) => (hours[i] += n))
     owl = owl || !!o.owl
     exts = union(exts, o.exts)
+    modelsLife = addMap(modelsLife, o.ml)
+    if (o.mt?.d === today) modelsToday = addMap(modelsToday, o.mt.v)
     const wrote = o.w ?? 0
     const active = wrote > 0 && now - wrote < ACTIVE_MS
     if (active) sessions++
@@ -185,6 +203,8 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     list: list.slice(0, 6),
     owl,
     exts: exts.length,
+    modelsToday,
+    modelsLife,
   }
 }
 
@@ -197,6 +217,7 @@ const fold = async ($: any, self: string, now: number) => {
   const days = { ...base.days }
   let owl = base.owl ?? false
   let exts = base.exts ?? []
+  let models = base.models ?? {}
   for (const k of (await $.store.keys()) as string[]) {
     if (!k.startsWith(PREFIX) || k === self) continue
     const o = (await $.store.get(k)) as Own | undefined
@@ -207,6 +228,7 @@ const fold = async ($: any, self: string, now: number) => {
       for (const d of Object.keys(o.days)) days[d] = add(days[d] ?? EMPTY, o.days[d])
       owl = owl || !!o.owl
       exts = union(exts, o.exts)
+      models = addMap(models, o.ml)
     }
     done.push(k)
   }
@@ -217,6 +239,7 @@ const fold = async ($: any, self: string, now: number) => {
     folded: [...base.folded, ...done].slice(-500),
     owl,
     exts,
+    models,
   })
   for (const k of done) await $.store.delete(k)
 }
@@ -267,6 +290,9 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
   const d = dayKey(now)
   const hours = own.hours?.d === d ? [...own.hours.v] : Array<number>(24).fill(0)
   hours[new Date(now).getHours()] += counts.code
+  const model = modelName(await sessionModel($))
+  const mt = own.mt?.d === d ? { ...own.mt.v } : {}
+  mt[model] = (mt[model] ?? 0) + counts.code
   ownCache = {
     t: now,
     w: now,
@@ -274,6 +300,8 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
     life: add(own.life, counts),
     days: keepDays({ ...own.days, [d]: add(own.days[d] ?? EMPTY, counts) }, KEEP_DAYS),
     hours: { d, v: hours },
+    ml: addMap(own.ml ?? {}, { [model]: counts.code }),
+    mt: { d, v: mt },
     owl: own.owl || (isNight(now) && counts.code > 0),
     exts: counts.code > 0 ? union(own.exts, [ext]) : (own.exts ?? []),
     s: trimStats(await read($, session)),
@@ -288,6 +316,15 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
   const crossed = Math.floor(after / MILESTONE) > Math.floor(before / MILESTONE)
   anim.hopUntil = now + (crossed ? 1400 : HOP_MS)
   await update($, pulse, (p: Pulse) => ({ at: now, n: counts.code, mile: crossed ? now : p.mile }))
+}
+
+// The chat's main model. Writes by a subagent count under it too (an agent's own model is not offered).
+const sessionModel = async ($: any): Promise<string> => {
+  try {
+    return String((await $.session.model()) ?? '')
+  } catch {
+    return ''
+  }
 }
 
 // The saved copy keeps the 40 biggest files, so the key stays small.
@@ -393,7 +430,6 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
   const now = await $.clock.now()
   const lv = levelOf(t.life.code)
   const { streak, best } = streaks(t.days, now)
-  const goal = p.goal > 0 ? p.goal : DEFAULT_GOAL
   const minutes = Math.max(1, (now - (s.startedAt || now)) / 60000)
 
   return {
@@ -413,8 +449,10 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     flashAt: pu.at,
     mile: pu.mile > 0 && now - pu.mile < MILE_MS,
     mileAt: pu.mile,
-    goal,
-    goalFrac: Math.min(1, t.today.code / goal),
+    modelsToday: top(t.modelsToday ?? {}, 8),
+    modelsLife: top(t.modelsLife ?? {}, 8),
+    earlierToday: Math.max(0, t.today.code - sum(t.modelsToday)),
+    earlierLife: Math.max(0, t.life.code - sum(t.modelsLife)),
     level: lv.level,
     xp: lv.xp,
     toNext: lv.toNext,
@@ -482,7 +520,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'linecount',
       description:
-        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, goal <n>, background <name>, section <name> on|off',
+        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, background <name>, section <name> on|off',
     })
 
     startTimers($)
@@ -539,13 +577,7 @@ export const register: Register = on => {
       return { text: `pane background: ${backgroundOf(value).label}` }
     }
 
-    if (what === 'goal') {
-      const n = Math.round(Number(value))
-      if (!Number.isFinite(n) || n < 1) return { text: 'goal: a number of code lines per day, for example /linecount goal 500' }
-      await set({ goal: n })
-
-      return { text: `daily goal: ${fmt(n)} code lines` }
-    }
+    if (what === 'goal') return { text: 'the daily goal was removed; the rings now show lines by model' }
 
     if (what === 'section') {
       const id = SECTION_IDS.find(x => x === value?.toLowerCase())

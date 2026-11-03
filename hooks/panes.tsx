@@ -13,7 +13,7 @@ const BLUE = '#7A8CE0'
 const GREEN = '#7FB069'
 const PINK = '#E86A9A'
 const LANG_COLORS = [CLAY, SAND, BLUE, GREEN, PINK]
-const GOALS = [250, 500, 1000, 2000]
+const MODEL_COLORS: Record<string, string> = { Opus: CLAY, Sonnet: SAND, Haiku: GREEN, Fable: BLUE }
 
 const bar = (n: number, max: number, width: number): string =>
   '█'.repeat(max === 0 ? 0 : Math.max(n > 0 ? 1 : 0, Math.round((n / max) * width)))
@@ -89,12 +89,24 @@ const sections: Record<string, Section> = {
 
   rings: ({ kit, v }) => {
     const { Box, Text } = kit.ui
-    const share = v.session.all ? v.session.code / v.session.all : 0
+    const line = (label: string, total: number, models: [string, number][], earlier: number, earlierName: string) => (
+      <Text>
+        <Text bold>{fmt(total)}</Text>
+        <Text dimColor>{` ${label}  `}</Text>
+        {models.slice(0, 4).map(([m, n]) => (
+          <Text>
+            <Text color={MODEL_COLORS[m.split(' ')[0]] ?? PINK}>■</Text>
+            <Text dimColor>{` ${m} ${fmt(n)}  `}</Text>
+          </Text>
+        ))}
+        {earlier > 0 ? <Text dimColor>{`░ ${earlierName} ${fmt(earlier)}`}</Text> : <Text> </Text>}
+      </Text>
+    )
 
     return (
       <Box flexDirection="column">
-        <Text><Text color={CLAY}>{goalBar(share, 12)}</Text> <Text bold>{Math.round(share * 100)}%</Text><Text dimColor> of this session is code</Text></Text>
-        <Text><Text color={v.goalFrac >= 1 ? GREEN : SAND}>{goalBar(v.goalFrac, 12)}</Text> <Text bold>{fmt(v.today.code)}</Text><Text dimColor>{` / ${fmt(v.goal)} today`}</Text></Text>
+        {line('lines today', v.today.code, v.modelsToday, v.earlierToday, 'earlier')}
+        {line('all time', v.life.code, v.modelsLife, v.earlierLife, 'before Nov 3')}
       </Box>
     )
   },
@@ -195,7 +207,7 @@ const inkFor = (mode: string): Ink =>
 
 const next = <T,>(list: readonly T[], cur: T): T => list[(list.indexOf(cur) + 1) % list.length]
 
-/** The "Look" area: toggles, design and outfit pickers (cycle buttons on mobile), goal, and one switch per section. */
+/** The "Look" area: toggles, design and outfit pickers (cycle buttons on mobile), and one switch per section. */
 const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
   const { Box, Button, Select, Text } = kit.ui
   const picker = v.surface !== 'mobile' && Select
@@ -216,7 +228,6 @@ const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
       {btn('status', `Band: ${p.status ? 'on' : 'off'}`, () => set({ status: !p.status }))}
       {btn('mascot', ` Mascot: ${p.mascot ? 'on' : 'off'}`, () => set({ mascot: !p.mascot }))}
       {btn('pane', ` Pane on start: ${p.pane ? 'on' : 'off'}`, () => set({ pane: !p.pane }))}
-      {btn('goal', ` Goal: ${fmt(p.goal)}`, () => set({ goal: next(GOALS, GOALS.includes(p.goal) ? p.goal : GOALS[0]) }))}
     </Box>
   )
 

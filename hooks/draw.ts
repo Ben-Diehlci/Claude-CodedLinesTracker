@@ -5,10 +5,10 @@ import { heat } from './model'
 const FONT = 'system-ui,-apple-system,Segoe UI,sans-serif'
 
 const LIGHT = `.fg{fill:#1F1E1D}.mu{fill:#6B6A64}.cl{fill:#C6613F}.sa{fill:#A98049}.fl{fill:#4F8A3C}.go{fill:#C9921F}.bl{fill:#5565C8}.pk{fill:#D45A8A}
-.hf{fill:rgba(31,30,29,.14)}.tn{fill:rgba(31,30,29,.05)}.ins{fill:rgba(31,30,29,.07)}.hs{stroke:rgba(31,30,29,.2)}.cs{stroke:#C6613F}.ss{stroke:#A98049}.ls{stroke:#4F8A3C}.fs{stroke:#1F1E1D}.cf{fill:#C6613F}
+.hf{fill:rgba(31,30,29,.14)}.tn{fill:rgba(31,30,29,.05)}.ins{fill:rgba(31,30,29,.07)}.hs{stroke:rgba(31,30,29,.2)}.cs{stroke:#C6613F}.ss{stroke:#A98049}.ls{stroke:#4F8A3C}.fs{stroke:#1F1E1D}.bs{stroke:#5565C8}.ps{stroke:#D45A8A}.cf{fill:#C6613F}
 .h1{fill:#F2D3C6}.h2{fill:#E8A88F}.h3{fill:#D97757}.h4{fill:#A84C30}.lk{opacity:.45}`
 const DARK = `.fg{fill:#F5F4EE}.mu{fill:#C2C0B6}.cl{fill:#D97757}.sa{fill:#E3C79A}.fl{fill:#7FB069}.go{fill:#E8B84A}.bl{fill:#7A8CE0}.pk{fill:#E86A9A}
-.hf{fill:rgba(245,244,238,.22)}.tn{fill:rgba(245,244,238,.07)}.ins{fill:rgba(245,244,238,.08)}.hs{stroke:rgba(245,244,238,.3)}.cs{stroke:#D97757}.ss{stroke:#E3C79A}.ls{stroke:#7FB069}.fs{stroke:#F5F4EE}.cf{fill:#D97757}
+.hf{fill:rgba(245,244,238,.22)}.tn{fill:rgba(245,244,238,.07)}.ins{fill:rgba(245,244,238,.08)}.hs{stroke:rgba(245,244,238,.3)}.cs{stroke:#D97757}.ss{stroke:#E3C79A}.ls{stroke:#7FB069}.fs{stroke:#F5F4EE}.bs{stroke:#7A8CE0}.ps{stroke:#E86A9A}.cf{fill:#D97757}
 .h1{fill:#8A4A36}.h2{fill:#B25E43}.h3{fill:#D97757}.h4{fill:#F0A383}.lk{opacity:.7}`
 
 /** Light or dark: follow the app ('auto'), or fixed when a chosen background is light or dark. */
@@ -44,36 +44,6 @@ const hash = (x: number, y: number): number => {
   return s - Math.floor(s)
 }
 
-/** A twinkle: opacity steps between 1 and .4, each phase offset so neighbours blink out of step. */
-const twinkle = (phase: number): string =>
-  `<animate attributeName="opacity" calcMode="discrete" values="1;.4;1;1" keyTimes="0;.5;.75;1" dur="1s" begin="${-phase * 0.25}s" repeatCount="indefinite"/>`
-
-/** The daily-goal bar: dots grow denser toward today's count and twinkle; a pill sits at its head. */
-export const dither = (x: number, y: number, w: number, h: number, frac: number, label: string): string => {
-  const pitch = 4
-  const rows = Math.floor((h - 4) / pitch)
-  const fillW = Math.max(0, (w - 4) * Math.min(1, frac))
-  const phases: string[] = ['', '', '', '']
-  for (let i = 0; i * pitch < fillW; i++) {
-    for (let j = 0; j < rows; j++) {
-      const p = (i * pitch) / fillW
-      if (hash(i, j) < 0.3 + 0.7 * p * p) phases[(i + j) % 4] += rect(3 + i * pitch, 3 + j * pitch, 3, 3, 'cf')
-    }
-  }
-  const pw = Math.max(34, est(label, 11, true) + 14)
-  const px = Math.min(w - pw - 1, Math.max(0, fillW - pw / 2))
-  const g = phases.map((p, i) => (p ? `<g>${twinkle(i)}${p}</g>` : '')).join('')
-
-  return (
-    `<g transform="translate(${num(x)},${num(y)})">` +
-    `<rect x=".5" y=".5" width="${num(w - 1)}" height="${num(h - 1)}" rx="${h / 2}" fill="none" class="hs"/>${g}` +
-    (fillW > 0
-      ? rect(px, h / 2 - 8, pw, 16, 'cf', 8) + text(px + pw / 2, h / 2 + 4, label, { cls: 'fg', size: 11, bold: true, anchor: 'middle' }).replace('class="fg"', 'fill="#fff"')
-      : '') +
-    `</g>`
-  )
-}
-
 /** A progress ring (stroke-dasharray): centre cx, cy; `cls` a stroke class (cs, ss, ls). */
 export const ring = (cx: number, cy: number, r: number, frac: number, cls: string, stroke = 5): string => {
   const C = 2 * Math.PI * r
@@ -83,6 +53,26 @@ export const ring = (cx: number, cy: number, r: number, frac: number, cls: strin
     `<circle cx="${num(cx)}" cy="${num(cy)}" r="${r}" fill="none" class="${cls}" stroke-width="${stroke}" stroke-linecap="round" ` +
     `stroke-dasharray="${num(C * Math.min(1, frac))} ${num(C)}" transform="rotate(-90 ${num(cx)} ${num(cy)})"/>`
   )
+}
+
+/** A ring cut into slices ([value, stroke class]), clockwise from the top, with a hairline track under them. */
+export const donut = (cx: number, cy: number, r: number, slices: [number, string][], stroke = 5): string => {
+  const C = 2 * Math.PI * r
+  const total = slices.reduce((t, [n]) => t + n, 0)
+  let out = `<circle cx="${num(cx)}" cy="${num(cy)}" r="${r}" fill="none" class="hs" stroke-width="${stroke}"/>`
+  if (total <= 0) return out
+  let at = 0
+  for (const [n, cls] of slices) {
+    if (n <= 0) continue
+    const len = (C * n) / total
+    const gap = slices.filter(x => x[0] > 0).length > 1 ? Math.min(2, len / 3) : 0
+    out +=
+      `<circle cx="${num(cx)}" cy="${num(cy)}" r="${r}" fill="none" class="${cls}" stroke-width="${stroke}" ` +
+      `stroke-dasharray="${num(len - gap)} ${num(C)}" stroke-dashoffset="${num(-at)}" transform="rotate(-90 ${num(cx)} ${num(cy)})"/>`
+    at += len
+  }
+
+  return out
 }
 
 // 3 x 5 pixel font.
@@ -233,6 +223,7 @@ export const confetti = (cx: number, cy: number, seed: number): string => {
 
 /* ---- terminal ---- */
 
+/** A text bar of ▰ and ▱ (XP, code share). */
 export const goalBar = (frac: number, n = 12): string => {
   const f = Math.round(Math.min(1, Math.max(0, frac)) * n)
 

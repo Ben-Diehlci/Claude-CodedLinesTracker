@@ -1,4 +1,4 @@
-// Clawd's stage: the strip in the card band where things happen while you work (it replaced the goal bar).
+// Clawd's stage: the strip in the card band where things happen while you work.
 // Desktop: Svg markup with SMIL timelines, each started at the wall clock's point so a redraw carries on.
 // Terminal: one row of Raster cells, repainted by the animation timer.
 import { fmt, isNight } from './model'
@@ -8,15 +8,16 @@ import type { Pose } from './clawd'
 import { est, rect, text } from './draw'
 
 export const STAGE_H = 34
-/** A block on the pile is a twentieth of the daily goal: 20 blocks = goal met, later ones are gold. */
-export const BLOCKS_PER_GOAL = 20
+/** A block on the pile is 100 of today's code lines; every tenth (each 1,000) is gold. */
+export const BLOCK_LINES = 100
+const gold = (i: number): boolean => i % 10 === 9
 const BS = 7
 const STEP = BS + 1
 const FLOOR = STAGE_H - 3
 /** The idle loop: a bug wanders in, mini Clawd catches it and walks back, later a nap by the pile. */
 export const IDLE_MS = 30_000
 
-export const pileOf = (today: number, goal: number): number => Math.max(0, Math.floor(today / Math.max(1, goal / BLOCKS_PER_GOAL)))
+export const pileOf = (today: number): number => Math.max(0, Math.floor(today / BLOCK_LINES))
 
 const num = (n: number): string => String(+n.toFixed(3))
 /** Starts an animation `ms` into its run (a negative begin), or `-ms` from now when ms is negative. */
@@ -104,7 +105,7 @@ const zzz = (x: number, y: number): string =>
 /** The stage's markup in its own coordinates (0..sw by STAGE_H); the caller places it. */
 export const stageSvg = (v: View, sw: number): string => {
   const night = isNight(v.now)
-  const blocks = pileOf(v.today.code, v.goal)
+  const blocks = pileOf(v.today.code)
   const maxCols = Math.max(2, Math.floor((sw * 0.3) / STEP))
   const shown = Math.min(blocks, maxCols * 3)
   const right = sw - 6
@@ -157,10 +158,10 @@ export const stageSvg = (v: View, sw: number): string => {
   // The pile, at the right end; after a write the new blocks drop in.
   const flashing = v.flash > 0
   const el = v.now - v.flashAt
-  const from = flashing ? pileOf(v.today.code - v.flash, v.goal) : shown
+  const from = flashing ? pileOf(v.today.code - v.flash) : shown
   for (let i = 0; i < shown; i++) {
     const p = pos(i)
-    const cls = i >= BLOCKS_PER_GOAL ? 'go' : 'cf'
+    const cls = gold(i) ? 'go' : 'cf'
     const k = i - from
     if (k < 0 || k >= 12) o += rect(p.x, p.y, BS, BS, cls, 1)
     else o += `<rect x="${p.x}" y="-10" width="${BS}" height="${BS}" rx="1" class="${cls}"><animate attributeName="y" from="-10" to="${p.y}" dur=".45s" fill="freeze"${at(el - 500 - k * 120)}/></rect>`
@@ -216,7 +217,7 @@ export const stageLive = (v: View): StageLive => ({
   working: v.working,
   asleep: v.asleep,
   night: isNight(v.now),
-  blocks: pileOf(v.today.code, v.goal),
+  blocks: pileOf(v.today.code),
   mileUntil: v.mile ? v.mileAt + 4000 : 0,
 })
 
@@ -227,7 +228,7 @@ export const stageCells = (s: StageLive, now: number, cols: number): string => {
     if (x >= 0 && x < cols) line[x] = [ch.codePointAt(0)!, fg, D]
   }
   const piles = Math.min(8, Math.ceil(s.blocks / 3))
-  for (let i = 0; i < piles; i++) put(cols - 1 - i, '▮', (piles - 1 - i) * 3 >= BLOCKS_PER_GOAL ? GOLD : CLAY)
+  for (let i = 0; i < piles; i++) put(cols - 1 - i, '▮', [0, 1, 2].some(r => gold((piles - 1 - i) * 3 + r)) ? GOLD : CLAY)
   const end = cols - piles - 2
 
   if (s.working) {

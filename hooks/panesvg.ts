@@ -1,9 +1,9 @@
 // The pane's sections as Svg markup for the desktop, laid out like design/mockups-v2.html (section 3, upgraded pane).
 // Each returns { h, src } for a box `w` wide; the terminal draws the same sections as text (panes.tsx).
 import { clawdBody, canvasH } from './clawd'
-import { est, heatStrip, rect, ring, svgDoc, text } from './draw'
+import { donut, est, heatStrip, rect, svgDoc, text } from './draw'
 import type { Mode } from './draw'
-import { HEAT_WEEKS, fmt } from './model'
+import { HEAT_WEEKS, fmt, modelColor } from './model'
 import type { View } from './model'
 
 export type Piece = { h: number; src: string; alt: string }
@@ -39,37 +39,62 @@ export const headerSvg = (v: View, w: number): Piece => {
   return piece(w, h, s, `${v.mascot ? 'Clawd the pixel crab. ' : ''}Level ${v.level}, ${fmt(v.life.code)} lifetime lines, ${fmt(v.toNext)} to the next level`)
 }
 
-// Caption size: 11 px, smaller when the words would run past the card's edge.
+// Caption size: 11 px, smaller when the words would run past the room.
 const fit = (s: string, room: number): number => Math.max(9, Math.min(11, Math.floor((room / (s.length * 0.56)) * 10) / 10))
 
-/** Two hairline cards: code share of this session, and today toward the goal. */
+/** A ring card's key: a dot and "Name 1,234" per slice, wrapping inside `room`; returns markup and its rows. */
+const legend = (x: number, y: number, room: number, items: [string, number, string][]): { s: string; rows: number } => {
+  let s = ''
+  let cx = 0
+  let row = 0
+  for (const [name, n, fill] of items) {
+    const label = `${name} ${fmt(n)}`
+    const iw = 10 + est(label, 11) + 10
+    if (cx > 0 && cx + iw > room) {
+      cx = 0
+      row++
+    }
+    s += `<circle cx="${x + cx + 3.5}" cy="${y + row * 14 - 3.5}" r="3.5" class="${fill}"/>` + text(x + cx + 10, y + row * 14, label, { cls: 'mu', size: 11 })
+    cx += iw
+  }
+
+  return { s, rows: row + 1 }
+}
+
+/** Slices for a model ring: the four biggest models, the rest as "Other", then the lines from before tracking. */
+const slices = (models: [string, number][], earlier: number, earlierName: string): [string, number, string, string][] => {
+  const named = models.slice(0, 4).map(([m, n]) => [m, n, modelColor(m).fill, modelColor(m).stroke] as [string, number, string, string])
+  const rest = models.slice(4).reduce((t, [, n]) => t + n, 0)
+  if (rest > 0) named.push(['Other', rest, 'pk', 'ps'])
+  if (earlier > 0) named.push([earlierName, earlier, 'hf', 'hs'])
+
+  return named
+}
+
+/** Two hairline cards: today's code lines by model (every session), and all time by model. */
 export const ringsSvg = (v: View, w: number): Piece => {
-  const h = 64
   // Two cards side by side, each at most 320 px so a wide pane does not stretch them thin.
   const cw = Math.min(320, (w - 10) / 2)
-  const share = v.session.all ? v.session.code / v.session.all : 0
-  const room = cw - 66
-  // Full captions when they fit, else a shorter pair (the ring already shows the share).
-  const words = (wide: [string, string], narrow: [string, string]): [string, string] =>
-    est(wide[0], 11) <= room && est(wide[1], 11) <= room ? wide : narrow
-  const card = (x: number, frac: number, ringCls: string, big: string, bigCls: string, [l1, l2]: [string, string]) =>
-    `<rect x="${x + 0.5}" y="0.5" width="${cw - 1}" height="${h - 1}" rx="10" fill="none" class="hs"/>` +
-    ring(x + 32, h / 2, 18, frac, ringCls) +
-    text(x + 60, 27, big, { cls: bigCls, size: 20, bold: true }) +
-    text(x + 60, 42, l1, { cls: 'mu', size: fit(l1, room) }) +
-    text(x + 60, 55, l2, { cls: 'mu', size: fit(l2, room) })
-  const s =
-    card(0, share, 'cs', fmt(v.session.code), 'cl', words(['code lines this session', `${Math.round(share * 100)}% of all lines`], ['code lines', 'this session'])) +
-    card(
-      cw + 10,
-      v.goalFrac,
-      v.goalFrac >= 1 ? 'ls' : 'ss',
-      fmt(v.today.code),
-      'fg',
-      words([`lines today, goal ${fmt(v.goal)}`, v.sessions > 1 ? 'all sessions' : 'this Mac'], ['lines today', `goal ${fmt(v.goal)}`]),
-    )
+  const room = cw - 72
+  const cards = [
+    { big: v.today.code, cap: 'lines today, by model', sl: slices(v.modelsToday, v.earlierToday, 'earlier') },
+    { big: v.life.code, cap: 'lines all time, by model', sl: slices(v.modelsLife, v.earlierLife, 'before Nov 3') },
+  ].map(c => ({ ...c, key: legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])) }))
+  const h = Math.max(64, 44 + Math.max(...cards.map(c => c.key.rows)) * 14)
+  let s = ''
+  cards.forEach((c, i) => {
+    const x = i * (cw + 10)
+    const caption = est(c.cap, 11) <= room ? c.cap : c.cap.replace(', by model', '')
+    s +=
+      `<rect x="${x + 0.5}" y="0.5" width="${cw - 1}" height="${h - 1}" rx="10" fill="none" class="hs"/>` +
+      donut(x + 32, h / 2, 18, c.sl.map(([, n, , st]) => [n, st] as [number, string]), 6) +
+      text(x + 62, 25, fmt(c.big), { cls: 'fg', size: 20, bold: true }) +
+      text(x + 62, 40, caption, { cls: 'mu', size: 11 }) +
+      `<g transform="translate(${x + 62},${55})">${legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])).s}</g>`
+  })
+  const said = (sl: [string, number, string, string][]) => sl.map(([n, k]) => `${n} ${fmt(k)}`).join(', ')
 
-  return piece(w, h, s, `${fmt(v.session.code)} code lines this session, ${Math.round(share * 100)}% of all lines; ${fmt(v.today.code)} of ${fmt(v.goal)} today`)
+  return piece(w, h, s, `${fmt(v.today.code)} code lines today by model: ${said(cards[0].sl) || 'none yet'}. ${fmt(v.life.code)} all time: ${said(cards[1].sl)}`)
 }
 
 /** 12-week heat map, then the streak and busiest day. */
