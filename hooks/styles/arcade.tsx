@@ -27,8 +27,8 @@ export const arcade: Design = {
       width: Math.max(est(label, 10, true) + label.length * 1.2, pixWidth(value, P)) + 22,
       draw: (bx: number) => tag(bx, label) + pix(bx, 30, value, P, cls),
     })
-    blocks.push(number('SESSION', fmt(v.session.code), 'cl'))
-    blocks.push(number('TODAY', fmt(v.today.code), 'sa'))
+    blocks.push(number('SESSION LINES', fmt(v.session.code), 'cl'))
+    blocks.push(number('LINES TODAY', fmt(v.today.code), 'sa'))
     blocks.push(number('HI-SCORE DAY', fmt(hi), beating ? 'fl' : 'go'))
     const lv = `LV ${v.level} - NEXT AT ${fmt(v.nextAt)}`
     blocks.push({
@@ -55,9 +55,9 @@ export const arcade: Design = {
     const stats = (
       <Box flexDirection="column">
         <Text>
-          <Text dimColor>SESSION </Text>
+          <Text dimColor>SESSION LINES </Text>
           <Text color={CLAY} bold>{fmt(v.session.code)}</Text>
-          <Text dimColor>{'  TODAY '}</Text>
+          <Text dimColor>{'  LINES TODAY '}</Text>
           <Text color={SAND} bold>{fmt(v.today.code)}</Text>
           <Text dimColor>{'  HI-SCORE DAY '}</Text>
           <Text color={GOLD} bold>{fmt(hi)}</Text>

@@ -12,9 +12,9 @@ const body = (v: View, k: Kit, mascotEl: any) => {
       <Text>
         <Text color={CLAY} bold>{'LINES '}</Text>
         <Text color={CLAY} bold>{fmt(v.session.code)}</Text>
-        <Text dimColor> code  </Text>
+        <Text dimColor> code lines  </Text>
         <Text color={SAND} bold>{fmt(v.session.all)}</Text>
-        <Text dimColor> with comments</Text>
+        <Text dimColor> lines with comments</Text>
         {v.mile ? (
           <Text color={FLASH} bold>{`  ✦ ${mileLabel(v)}`}</Text>
         ) : v.flash > 0 ? (

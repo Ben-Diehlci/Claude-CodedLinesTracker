@@ -39,20 +39,34 @@ export const headerSvg = (v: View, w: number): Piece => {
   return piece(w, h, s, `${v.mascot ? 'Clawd the pixel crab. ' : ''}Level ${v.level}, ${fmt(v.life.code)} lifetime lines, ${fmt(v.toNext)} to the next level`)
 }
 
+// Caption size: 11 px, smaller when the words would run past the card's edge.
+const fit = (s: string, room: number): number => Math.max(9, Math.min(11, Math.floor((room / (s.length * 0.56)) * 10) / 10))
+
 /** Two hairline cards: code share of this session, and today toward the goal. */
 export const ringsSvg = (v: View, w: number): Piece => {
   const h = 64
   const cw = (w - 10) / 2
   const share = v.session.all ? v.session.code / v.session.all : 0
-  const card = (x: number, frac: number, ringCls: string, big: string, bigCls: string, l1: string, l2: string) =>
+  const room = cw - 66
+  // Full captions when they fit, else a shorter pair (the ring already shows the share).
+  const words = (wide: [string, string], narrow: [string, string]): [string, string] =>
+    est(wide[0], 11) <= room && est(wide[1], 11) <= room ? wide : narrow
+  const card = (x: number, frac: number, ringCls: string, big: string, bigCls: string, [l1, l2]: [string, string]) =>
     `<rect x="${x + 0.5}" y="0.5" width="${cw - 1}" height="${h - 1}" rx="10" fill="none" class="hs"/>` +
     ring(x + 32, h / 2, 18, frac, ringCls) +
     text(x + 60, 27, big, { cls: bigCls, size: 20, bold: true }) +
-    text(x + 60, 42, l1, { cls: 'mu', size: 11 }) +
-    text(x + 60, 55, l2, { cls: 'mu', size: 11 })
+    text(x + 60, 42, l1, { cls: 'mu', size: fit(l1, room) }) +
+    text(x + 60, 55, l2, { cls: 'mu', size: fit(l2, room) })
   const s =
-    card(0, share, 'cs', fmt(v.session.code), 'cl', 'code this session', `${Math.round(share * 100)}% of all lines`) +
-    card(cw + 10, v.goalFrac, v.goalFrac >= 1 ? 'ls' : 'ss', fmt(v.today.code), 'fg', `today, goal ${fmt(v.goal)}`, v.sessions > 1 ? 'all sessions' : 'this Mac')
+    card(0, share, 'cs', fmt(v.session.code), 'cl', words(['code lines this session', `${Math.round(share * 100)}% of all lines`], ['code lines', 'this session'])) +
+    card(
+      cw + 10,
+      v.goalFrac,
+      v.goalFrac >= 1 ? 'ls' : 'ss',
+      fmt(v.today.code),
+      'fg',
+      words([`lines today, goal ${fmt(v.goal)}`, v.sessions > 1 ? 'all sessions' : 'this Mac'], ['lines today', `goal ${fmt(v.goal)}`]),
+    )
 
   return piece(w, h, s, `${fmt(v.session.code)} code lines this session, ${Math.round(share * 100)}% of all lines; ${fmt(v.today.code)} of ${fmt(v.goal)} today`)
 }

@@ -24,12 +24,12 @@ export const card: Design = {
 
     inner += text(tx, 25, code, { cls: 'cl', size: 18, bold: true })
     let x = tx + est(code, 18, true) + 5
-    inner += text(x, 25, 'code', { cls: 'mu', size: 12 })
-    x += est('code', 12) + 14
+    inner += text(x, 25, 'code lines', { cls: 'mu', size: 12 })
+    x += est('code lines', 12) + 14
     inner += text(x, 25, all, { cls: 'sa', size: 15, bold: true })
     x += est(all, 15, true) + 5
-    inner += text(x, 25, 'with comments', { cls: 'mu', size: 12 })
-    x += est('with comments', 12) + 12
+    inner += text(x, 25, 'lines with comments', { cls: 'mu', size: 12 })
+    x += est('lines with comments', 12) + 12
     const chip = v.mile ? `✦ ${mileLabel(v)}` : v.flash > 0 ? `+${fmt(v.flash)}` : ''
     if (chip) {
       const pw = est(chip, 12, true) + 16
@@ -39,7 +39,7 @@ export const card: Design = {
     const side = w - tx > 520
     const bw = Math.max(120, Math.min(300, w - tx - (side ? 200 : 150)))
     inner += dither(tx, 33, bw, 16, v.goalFrac, fmt(v.today.code))
-    inner += text(tx + bw + 10, 46, `${fmt(v.today.code)} / ${fmt(v.goal)} today`, { cls: 'mu', size: 12 })
+    inner += text(tx + bw + 10, 46, `${fmt(v.today.code)} / ${fmt(v.goal)} lines today`, { cls: 'mu', size: 12 })
     if (side) {
       const rows = rowsOf(v)
       inner += dots(w - 16 - rows.length * 11 + 7, 15, rows)
@@ -57,9 +57,9 @@ export const card: Design = {
         <Text>
           <Text color={CLAY} bold>{'LINES '}</Text>
           <Text color={CLAY} bold>{fmt(v.session.code)}</Text>
-          <Text dimColor> code  </Text>
+          <Text dimColor> code lines  </Text>
           <Text color={SAND} bold>{fmt(v.session.all)}</Text>
-          <Text dimColor> with comments</Text>
+          <Text dimColor> lines with comments</Text>
           {v.mile ? (
             <Text color={FLASH} bold>{`  ✦ ${mileLabel(v)}`}</Text>
           ) : v.flash > 0 ? (

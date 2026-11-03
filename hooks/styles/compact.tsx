@@ -22,8 +22,8 @@ export const compact: Design = {
     const code = fmt(v.session.code)
     inner += text(x, 19, code, { cls: 'cl', size: 14, bold: true })
     x += est(code, 14, true) + 4
-    inner += text(x, 19, 'code', { cls: 'mu', size: 12 })
-    x += est('code', 12) + 14
+    inner += text(x, 19, 'code lines', { cls: 'mu', size: 12 })
+    x += est('code lines', 12) + 14
     inner += ring(x + 7, H / 2, 6, v.goalFrac, v.goalFrac >= 1 ? 'ls' : 'cs', 3)
     x += 20
     const g = `${fmt(v.today.code)}/${fmt(v.goal)}`
@@ -54,7 +54,7 @@ export const compact: Design = {
           <Text dimColor>{v.mascot ? `${k.face} ` : ''}</Text>
           <Text color={CLAY} bold>{'LINES '}</Text>
           <Text color={CLAY} bold>{fmt(v.session.code)}</Text>
-          <Text dimColor> code  </Text>
+          <Text dimColor> code lines  </Text>
           <Text color={CLAY}>{goalBar(v.goalFrac, 6)}</Text>
           <Text bold>{` ${fmt(v.today.code)}`}</Text>
           <Text dimColor>{`/${fmt(v.goal)}  `}</Text>
