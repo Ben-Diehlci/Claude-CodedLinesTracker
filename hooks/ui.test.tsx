@@ -269,6 +269,9 @@ test('a chosen pane background fills the pane and fixes the drawings to light or
   expect(src).not.toMatch(/prefers-color-scheme/)
   expect(src).toMatch(/\.fg\{fill:#F5F4EE\}/)
   expect((await dark.find({ type: 'Text', text: /^Sections$/ }))?.props.color).toBe('#C2C0B6')
+  // The app's own button text would sink into a dark fill: our Buttons carry their label as Text in the light color.
+  expect((await dark.find({ type: 'Text', text: /^Band: on$/ }))?.props.color).toBe('#F5F4EE')
+  expect(await buttons(dark)).toContain('Heat map: on ')
   await dark.unmount()
 
   // The terminal keeps its own background.

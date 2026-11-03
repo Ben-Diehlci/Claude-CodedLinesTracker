@@ -211,12 +211,22 @@ const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
     </Box>
   )
 
+  // On a chosen background the app's own button text can sink into it: draw the label as our Text, in the background's color.
+  const btn = (key: string, label: string, onPress: () => Promise<void>) =>
+    'color' in ink.fg ? (
+      <Button key={key} label={label} onPress={onPress}>
+        <Text {...ink.fg}>{label}</Text>
+      </Button>
+    ) : (
+      <Button key={key} label={label} onPress={onPress} />
+    )
+
   const toggles = (
     <Box flexWrap="wrap">
-      <Button key="status" label={`Band: ${p.status ? 'on' : 'off'}`} onPress={() => set({ status: !p.status })} />
-      <Button key="mascot" label={` Mascot: ${p.mascot ? 'on' : 'off'}`} onPress={() => set({ mascot: !p.mascot })} />
-      <Button key="pane" label={` Pane on start: ${p.pane ? 'on' : 'off'}`} onPress={() => set({ pane: !p.pane })} />
-      <Button key="goal" label={` Goal: ${fmt(p.goal)}`} onPress={() => set({ goal: next(GOALS, GOALS.includes(p.goal) ? p.goal : GOALS[0]) })} />
+      {btn('status', `Band: ${p.status ? 'on' : 'off'}`, () => set({ status: !p.status }))}
+      {btn('mascot', ` Mascot: ${p.mascot ? 'on' : 'off'}`, () => set({ mascot: !p.mascot }))}
+      {btn('pane', ` Pane on start: ${p.pane ? 'on' : 'off'}`, () => set({ pane: !p.pane }))}
+      {btn('goal', ` Goal: ${fmt(p.goal)}`, () => set({ goal: next(GOALS, GOALS.includes(p.goal) ? p.goal : GOALS[0]) }))}
     </Box>
   )
 
@@ -235,19 +245,15 @@ const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
         </Box>
       ) : (
         <Box flexWrap="wrap">
-          <Button key="style" label={`Design: ${styleName(p.style)}`} onPress={() => set({ style: next(STYLE_CHOICES, p.style) })} />
-          <Button key="outfit" label={` Outfit: ${p.outfit}`} onPress={() => set({ outfit: next(OUTFIT_CHOICES, p.outfit) })} />
-          <Button key="bg" label={` Background: ${backgroundOf(p.bg).label}`} onPress={() => set({ bg: next(bgIds, backgroundOf(p.bg).id) })} />
+          {btn('style', `Design: ${styleName(p.style)}`, () => set({ style: next(STYLE_CHOICES, p.style) }))}
+          {btn('outfit', ` Outfit: ${p.outfit}`, () => set({ outfit: next(OUTFIT_CHOICES, p.outfit) }))}
+          {btn('bg', ` Background: ${backgroundOf(p.bg).label}`, () => set({ bg: next(bgIds, backgroundOf(p.bg).id) }))}
         </Box>
       )}
       <Text {...ink.mu}>Sections</Text>
       <Box flexWrap="wrap">
         {SECTIONS.map(s => (
-          <Button
-            key={`sec-${s.id}`}
-            label={`${s.label}: ${p.sections[s.id] !== false ? 'on' : 'off'} `}
-            onPress={() => set({ sections: { ...p.sections, [s.id]: p.sections[s.id] === false } })}
-          />
+          btn(`sec-${s.id}`, `${s.label}: ${p.sections[s.id] !== false ? 'on' : 'off'} `, () => set({ sections: { ...p.sections, [s.id]: p.sections[s.id] === false } }))
         ))}
       </Box>
     </Box>
