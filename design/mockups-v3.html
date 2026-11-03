@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clawd Stage Strip</title>
+<style>
+  :root, [data-theme="light"] {
+    --bg: #FAF9F5; --panel: #F2F1EC; --fg: #1F1E1D; --muted: #6B6A64; --hair: rgba(31,30,29,.18); --tint: rgba(31,30,29,.05);
+    --clay: #C6613F; --sand: #A98049; --flash: #4F8A3C; --eye: #1F1E1D; --gold: #C9921F; --pink: #D45A8A; --blue: #5565C8;
+    --glyph: #8E8C84; --moon: #C9B98A;
+  }
+  [data-theme="dark"] {
+    --bg: #262624; --panel: #30302E; --fg: #F5F4EE; --muted: #9C9A92; --hair: rgba(245,244,238,.2); --tint: rgba(245,244,238,.05);
+    --clay: #D97757; --sand: #E3C79A; --flash: #7FB069; --eye: #1F1E1D; --gold: #E8B84A; --pink: #E86A9A; --blue: #7A8CE0;
+    --glyph: #8E8C84; --moon: #E9DDB4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, system-ui, sans-serif; padding: 24px 16px 64px; }
+  .wrap { max-width: 980px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 13px; margin: 34px 0 6px; color: var(--clay); text-transform: uppercase; letter-spacing: .1em; }
+  p.note { color: var(--muted); margin: 0 0 14px; max-width: 760px; }
+  ul.new { color: var(--muted); margin: 8px 0 0; padding-left: 18px; font-size: 13px; max-width: 760px; }
+  ul.new b { color: var(--fg); font-weight: 600; }
+  .controls { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0; background: var(--bg); }
+  button { background: var(--panel); color: var(--fg); border: 1px solid var(--hair); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  button:hover, button.on { border-color: var(--clay); }
+  button.on { color: var(--clay); }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  svg { display: block; flex: none; overflow: visible; }
+
+  .frame { border: 1px solid var(--hair); border-radius: 12px; padding: 14px; background: var(--bg); }
+  .frame .chat { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .frame .prompt { border: 1px solid var(--hair); border-radius: 10px; padding: 11px 12px; color: var(--muted); background: var(--panel); margin-top: 8px; }
+  .cardband { display: flex; align-items: center; gap: 16px; border: 1px solid var(--hair); border-radius: 12px; padding: 8px 14px; }
+  .cardband .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .cardband .top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .big { font-size: 18px; font-weight: 700; color: var(--clay); }
+  .mid { font-size: 15px; font-weight: 700; color: var(--sand); margin-left: 8px; }
+  .side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; color: var(--muted); }
+  .pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--flash) 18%, transparent); color: var(--flash); opacity: 0; transition: opacity .3s; }
+  .pill.show { opacity: 1; }
+  .scenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .scene { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; }
+  .scene b { font-size: 13px; }
+  .scene .muted { font-size: 12px; }
+  .term { background: #1A1A19; color: #F5F4EE; border: 1px solid var(--hair); border-radius: 10px; padding: 12px 14px; font: 13px/18px Menlo, "SF Mono", monospace; overflow-x: auto; white-space: pre; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Clawd's stage - the band without the goal bar</h1>
+<p class="note">The twinkling goal bar becomes a little stage where things happen while you work. The goal stays in the pane's ring card. Everything here is local drawing, no tokens. Use the buttons to try each moment; light and dark both work.</p>
+
+<div class="controls">
+  <button id="bTheme">Light / dark</button>
+  <button id="bWork">Claude is working</button>
+  <button id="bWrite">Simulate a write (+42)</button>
+  <button id="bBug">Bug chase now</button>
+  <button id="bNap">Nap on the pile</button>
+  <button id="bNight">Night</button>
+  <button id="bMile">Cross a milestone</button>
+  <span class="muted" id="what" style="align-self:center;font-size:12px"></span>
+</div>
+
+<h2>The band with the stage</h2>
+<div class="frame">
+  <div class="chat">... conversation ...</div>
+  <div class="cardband">
+    <svg id="clawd"></svg>
+    <div class="main">
+      <div class="top">
+        <span class="big num" id="vCode"></span><span class="muted">code lines</span>
+        <span class="mid num" id="vAll"></span><span class="muted">lines with comments</span>
+        <span class="pill" id="pill">+42</span>
+      </div>
+      <svg id="stage" aria-label="Clawd's stage"></svg>
+    </div>
+    <div class="side">
+      <span id="vToday" class="num"></span>
+      <span><span id="vLife" class="num"></span> all time</span>
+    </div>
+  </div>
+  <div class="prompt">Reply to Claude...</div>
+</div>
+
+<h2>What happens on the stage</h2>
+<div class="scenes">
+  <div class="scene"><b>While Claude works</b><div class="muted">Pixel code symbols scroll along like a conveyor belt into a blinking cursor. Big Clawd types on his tiny keyboard.</div></div>
+  <div class="scene"><b>Each write</b><div class="muted">The "+42" zips along the strip to the pile, and blocks drop onto it. One block = 25 lines (a twentieth of the daily goal), so a full pile means the goal is met; past it the new blocks turn gold.</div></div>
+  <div class="scene"><b>Idle</b><div class="muted">A tiny bug wanders in. Now and then mini Clawd runs out, catches it ("!") and walks back. Sometimes he naps on the pile.</div></div>
+  <div class="scene"><b>Night (after 10 pm)</b><div class="muted">A moon in the corner, the stage dims, and mini Clawd dozes with drifting z's.</div></div>
+  <div class="scene"><b>Milestones</b><div class="muted">Every 1,000 lines: pixel fireworks pop over the stage.</div></div>
+  <div class="scene"><b>Narrow band</b><div class="muted">The stage just gets shorter; the pile keeps its spot at the right end.</div></div>
+</div>
+
+<h2>Terminal version</h2>
+<div class="term" id="term"></div>
+<ul class="new">
+  <li><b>Same moments in one text line:</b> scrolling symbols while working, a bug and a tiny crab when idle, a pile of ▮ blocks at the right, ✦ at milestones.</li>
+</ul>
+</div>
+
+<script>
+// ---------- palette helpers ----------
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString('en-US');
+
+// ---------- big Clawd (same sprite as the plugin) ----------
+const BODY = ['..OOOOOOOO..','..OKOOOOKO..','OOOKOOOOKOOO','..OOOOOOOO..','..O.O..O.O..','..O.O..O.O..'];
+function crab(st, px, ox = 0, oy = 0) {
+  const m = BODY.map(r => r.split(''));
+  if (st.legs) m[5] = '...O.O..O.O.'.split('');
+  if (st.blink || st.sleep) { m[1][3] = 'O'; m[1][8] = 'O'; }
+  if (st.armL) { m[2][0] = m[2][1] = '.'; m[1][0] = m[1][1] = 'O'; }
+  if (st.armR) { m[2][10] = m[2][11] = '.'; m[1][10] = m[1][11] = 'O'; }
+  if (st.flip) m.forEach(r => r.reverse());
+  let o = '';
+  m.forEach((row, y) => row.forEach((c, x) => {
+    if (c !== '.') o += `<rect x="${ox + x * px}" y="${oy + y * px}" width="${px}" height="${px}" fill="${c === 'K' ? 'var(--eye)' : 'var(--clay)'}"/>`;
+  }));
+  return o;
+}
+
+// ---------- tiny pixel glyphs for the conveyor (3x5) ----------
+const GLYPHS = {
+  '{': ['.11','.1.','11.','.1.','.11'], '}': ['11.','.1.','.11','.1.','11.'],
+  ';': ['...','.1.','...','.1.','1..'], '<': ['..1','.1.','1..','.1.','..1'],
+  '>': ['1..','.1.','..1','.1.','1..'], '/': ['..1','..1','.1.','1..','1..'],
+  '=': ['...','111','...','111','...'], '(': ['.1.','1..','1..','1..','.1.'], ')': ['.1.','..1','..1','..1','.1.'],
+};
+const GKEYS = Object.keys(GLYPHS);
+function glyph(ch, x, y, px, color) {
+  let o = '';
+  GLYPHS[ch].forEach((r, j) => [...r].forEach((c, i) => { if (c === '1') o += `<rect x="${x + i * px}" y="${y + j * px}" width="${px}" height="${px}" fill="${color}"/>`; }));
+  return o;
+}
+
+// ---------- state ----------
+const GOAL = 500, BLOCK = GOAL / 20;
+const S = {
+  code: 1284, all: 1502, today: 312, life: 18930, working: false, night: false,
+  pile: Math.floor(312 / BLOCK),             // blocks settled on the pile
+  falling: [],                               // {x, y, vy, gold}
+  chip: null,                                // {x, t0}
+  bug: null,                                 // {x, dir, caught}
+  mini: null,                                // {x, phase:'out'|'back'|'nap', t0}
+  fireworks: [],                             // {x, y, t0, parts:[...]}
+  nextBug: Date.now() + 3000, nextChase: Date.now() + 7000, mileUntil: 0, plusUntil: 0,
+};
+const H = 38, PX = 2;
+let W = 360;
+
+function pileGeom() {
+  // Pile at the right end: columns 3 blocks tall, growing to the left.
+  const bs = 8, gap = 1, cols = Math.ceil(Math.max(1, S.pile + S.falling.length) / 3);
+  return { bs, gap, right: W - 2, width: Math.max(1, cols) * (bs + gap) };
+}
+function blockPos(i) {
+  const g = pileGeom();
+  const col = Math.floor(i / 3), row = i % 3;
+  return { x: g.right - (col + 1) * (g.bs + g.gap), y: H - 2 - (row + 1) * (g.bs + g.gap) };
+}
+
+function addWrite(n) {
+  S.code += n; S.all += n + 7; S.today += n; S.life += n;
+  S.plusUntil = Date.now() + 2500;
+  S.chip = { t0: Date.now() };
+  const want = Math.floor(S.today / BLOCK);
+  for (let i = S.pile + S.falling.length; i < want; i++) {
+    const p = blockPos(i);
+    S.falling.push({ i, x: p.x, y: -8 - S.falling.length * 6, ty: p.y, gold: i >= 20 });
+  }
+  const before = Math.floor((S.life - n) / 1000), after = Math.floor(S.life / 1000);
+  if (after > before) mile();
+}
+
+function mile() {
+  S.mileUntil = Date.now() + 1800;
+  const colors = ['var(--clay)', 'var(--gold)', 'var(--pink)', 'var(--flash)', 'var(--blue)'];
+  for (let k = 0; k < 3; k++) {
+    const x = 40 + Math.random() * (W - 140), y = 6 + Math.random() * 10;
+    S.fireworks.push({ x, y, t0: Date.now() + k * 250, parts: Array.from({ length: 14 }, (_, i) => ({ a: (i / 14) * Math.PI * 2, c: colors[(i + k) % 5] })) });
+  }
+}
+
+function startChase() {
+  if (!S.bug) S.bug = { x: W * 0.45, dir: 1 };
+  S.mini = { x: -20, phase: 'out', t0: Date.now() };
+}
+
+// ---------- drawing ----------
+function drawStage(now) {
+  const st = $('stage');
+  W = Math.max(220, Math.min(460, st.parentElement.clientWidth));
+  st.setAttribute('width', W); st.setAttribute('height', H); st.setAttribute('shape-rendering', 'crispEdges');
+  st.style.overflow = 'hidden'; // mini Clawd and falling blocks enter from outside the stage
+  let o = `<rect x=".5" y=".5" width="${W - 1}" height="${H - 1}" rx="8" fill="${S.night ? 'var(--tint)' : 'none'}" stroke="var(--hair)"/>`;
+  o += `<rect x="6" y="${H - 3}" width="${W - 12}" height="1" fill="var(--hair)"/>`;
+  const g = pileGeom();
+  const stageEnd = W - g.width - 10;
+
+  // night: moon + stars
+  if (S.night) {
+    o += `<circle cx="14" cy="9" r="4" fill="var(--moon)"/><circle cx="16" cy="8" r="3.4" fill="var(--bg)"/>`;
+    for (let i = 0; i < 6; i++) { const sx = 30 + i * 47 % (stageEnd - 30), sy = 4 + (i * 7) % 9; if ((Math.floor(now / 600) + i) % 3) o += `<rect x="${sx}" y="${sy}" width="1.5" height="1.5" fill="var(--moon)"/>`; }
+  }
+
+  // working: conveyor of glyphs moving right-to-left into a blinking cursor at the left
+  if (S.working) {
+    const step = 13, speed = 0.04, off = (now * speed) % step;
+    for (let x = 18 - off + step; x < stageEnd - 8; x += step) {
+      const k = Math.floor((x + now * speed) / step);
+      const ch = GKEYS[Math.abs(k * 7 + 3) % GKEYS.length];
+      o += glyph(ch, x, 14, PX, 'var(--glyph)');
+    }
+    if (Math.floor(now / 450) % 2) o += `<rect x="9" y="11" width="3" height="16" fill="var(--clay)"/>`;
+  }
+
+  // write: the +N chip zips from the left to the pile
+  if (S.chip) {
+    const t = (now - S.chip.t0) / 700;
+    if (t >= 1) S.chip = null;
+    else {
+      const x = 10 + (stageEnd - 40) * (1 - Math.pow(1 - t, 3));
+      o += `<rect x="${x}" y="7" width="30" height="16" rx="8" fill="var(--flash)" opacity=".9"/><text x="${x + 15}" y="19" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="system-ui">+42</text>`;
+    }
+  }
+
+  // idle: a bug wanders; mini Clawd chases it
+  const idle = !S.working;
+  if (idle && !S.bug && now > S.nextBug) S.bug = { x: 30, dir: 1 };
+  if (S.bug) {
+    if (!S.mini || S.mini.phase !== 'back') S.bug.x += S.bug.dir * 0.35;
+    if (S.bug.x > stageEnd - 30) S.bug.dir = -1;
+    if (S.bug.x < 24) S.bug.dir = 1;
+    const bx = Math.round(S.bug.x), leg = Math.floor(now / 140) % 2;
+    // bug: 2 px pixels, body, head, two stepping legs
+    o += `<rect x="${bx}" y="${H - 11}" width="10" height="5" fill="var(--fg)"/><rect x="${bx + 2}" y="${H - 13}" width="6" height="2" fill="var(--fg)"/>`;
+    o += `<rect x="${bx + (leg ? 0 : 2)}" y="${H - 6}" width="2" height="3" fill="var(--fg)"/><rect x="${bx + (leg ? 8 : 6)}" y="${H - 6}" width="2" height="3" fill="var(--fg)"/>`;
+    if (idle && !S.mini && now > S.nextChase) startChase();
+  }
+  if (S.mini) {
+    const m = S.mini, mpx = 2, mh = 6 * mpx;
+    if (m.phase === 'out') {
+      m.x += 1.1;
+      if (S.bug && m.x + 12 * mpx >= S.bug.x) { m.phase = 'got'; m.t0 = now; S.bug = null; }
+      if (m.x > stageEnd) { m.phase = 'back'; }
+    } else if (m.phase === 'got') {
+      if (now - m.t0 > 700) m.phase = 'back';
+    } else if (m.phase === 'back') {
+      m.x -= 0.9;
+      if (m.x < -24) { S.mini = null; S.nextBug = now + 5000 + Math.random() * 6000; S.nextChase = now + 9000 + Math.random() * 8000; }
+    } else if (m.phase === 'nap') {
+      if (now - m.t0 > 5000) { S.mini = null; }
+    }
+    if (S.mini) {
+      const legs = m.phase !== 'got' && m.phase !== 'nap' && Math.floor(now / 120) % 2 === 1;
+      const y = m.phase === 'nap' ? blockPos(Math.max(0, S.pile - 1)).y - mh : H - 3 - mh;
+      o += crab({ legs, armL: m.phase === 'got', armR: m.phase === 'got', blink: m.phase === 'nap', flip: m.phase === 'back' }, mpx, m.x, y);
+      if (m.phase === 'got') o += `<text x="${m.x + 20}" y="${y + 2}" font-size="10" font-weight="700" fill="var(--sand)" font-family="system-ui">!</text>`;
+      if (m.phase === 'nap') { const z = ((now - m.t0) % 1600) / 1600; o += `<text x="${m.x + 18 + z * 4}" y="${y - z * 6}" font-size="8" fill="var(--muted)" opacity="${1 - z}" font-family="system-ui">z</text>`; }
+    }
+  }
+  if (S.night && !S.mini && idle && Math.floor(now / 8000) % 2 === 0) {
+    // nighttime: mini Clawd dozes on the pile
+    S.mini = { x: g.right - g.width - 4, phase: 'nap', t0: now };
+  }
+
+  // pile (settled + falling)
+  for (let i = 0; i < S.pile; i++) {
+    const p = blockPos(i);
+    o += `<rect x="${p.x}" y="${p.y}" width="${g.bs}" height="${g.bs}" rx="1" fill="${i >= 20 ? 'var(--gold)' : 'var(--clay)'}"/>`;
+  }
+  S.falling = S.falling.filter(b => {
+    b.y += 1.6;
+    if (b.y >= b.ty) { S.pile++; return false; }
+    o += `<rect x="${b.x}" y="${b.y}" width="${g.bs}" height="${g.bs}" rx="1" fill="${b.gold ? 'var(--gold)' : 'var(--clay)'}"/>`;
+    return true;
+  });
+
+  // fireworks
+  S.fireworks = S.fireworks.filter(f => {
+    const t = (now - f.t0) / 900;
+    if (t < 0) return true;
+    if (t > 1) return false;
+    f.parts.forEach(p => {
+      const r = 3 + t * 16;
+      o += `<rect x="${f.x + Math.cos(p.a) * r}" y="${f.y + Math.sin(p.a) * r * 0.6 + t * 4}" width="2" height="2" fill="${p.c}" opacity="${1 - t}"/>`;
+    });
+    return true;
+  });
+  st.innerHTML = o;
+}
+
+function drawClawd(now) {
+  const el = $('clawd'), px = 4;
+  el.setAttribute('width', 14 * px); el.setAttribute('height', 8 * px); el.setAttribute('shape-rendering', 'crispEdges');
+  const typing = S.working && Math.floor(now / 3000) % 2 === 1;
+  const st = {
+    blink: now % 4000 < 160,
+    legs: S.working && !typing && Math.floor(now / 250) % 2 === 1,
+    armL: typing && Math.floor(now / 160) % 2 === 0,
+    armR: typing && Math.floor(now / 160) % 2 === 1,
+    sleep: S.night && !S.working && Math.floor(now / 10000) % 2 === 1,
+  };
+  let o = crab(st, px, px, px);
+  if (typing) for (let k = 0; k < 8; k++) o += `<rect x="${(k + 3) * px}" y="${7.2 * px}" width="${px * 0.8}" height="${px * 0.6}" fill="var(--muted)"/>`;
+  el.innerHTML = o;
+}
+
+function drawTerm(now) {
+  const cols = 44;
+  let line = Array(cols).fill(' ');
+  if (S.working) {
+    const off = Math.floor(now / 160);
+    for (let i = 2; i < cols - 10; i += 2) line[i] = '{};<>/=()'[(i + off) % 9];
+    if (Math.floor(now / 450) % 2) line[0] = '▌';
+  } else {
+    const b = Math.floor(now / 300) % (cols - 14);
+    line[2 + b] = 'ж';
+    if (S.mini && S.mini.phase === 'out') line[Math.max(0, Math.min(cols - 12, Math.floor(S.mini.x / W * cols)))] = '◆';
+  }
+  const blocks = Math.min(8, Math.ceil(S.pile / 3));
+  for (let i = 0; i < blocks; i++) line[cols - 1 - i] = '▮';
+  const mile = Date.now() < S.mileUntil ? '  <span style="color:#E8B84A">✦ ✦ ✦</span>' : '';
+  $('term').innerHTML =
+    `<span style="color:#D97757;font-weight:700">LINES ${fmt(S.code)}</span><span style="color:#9C9A92"> code lines  </span><span style="color:#E3C79A;font-weight:700">${fmt(S.all)}</span><span style="color:#9C9A92"> lines with comments</span>` +
+    (Date.now() < S.plusUntil ? '<span style="color:#7FB069;font-weight:700">  +42</span>' : '') + '\n' +
+    `<span style="color:#8E8C84">${line.join('').replace(/▮/g, '<span style="color:#D97757">▮</span>').replace('ж', '<span style="color:#F5F4EE">ж</span>').replace('◆', '<span style="color:#D97757">◆</span>')}</span>` +
+    `<span style="color:#9C9A92">  ${fmt(S.today)} today  ${fmt(S.life)} all time</span>${mile}`;
+}
+
+function tick() {
+  const now = Date.now();
+  drawClawd(now); drawStage(now); drawTerm(now);
+  $('vCode').textContent = fmt(S.code); $('vAll').textContent = fmt(S.all);
+  $('vToday').textContent = `${fmt(S.today)} lines today`; $('vLife').textContent = fmt(S.life);
+  $('pill').classList.toggle('show', now < S.plusUntil);
+  const what = S.working ? 'working: code scrolls, Clawd types' : S.mini?.phase === 'out' ? 'mini Clawd chases the bug' : S.mini?.phase === 'nap' ? 'nap on the pile' : S.bug ? 'a bug wanders in' : 'idle';
+  $('what').textContent = what;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ---------- controls ----------
+$('bTheme').onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; };
+$('bWork').onclick = () => { S.working = !S.working; $('bWork').classList.toggle('on', S.working); if (S.working) { S.bug = null; S.mini = null; } };
+$('bWrite').onclick = () => addWrite(42);
+$('bBug').onclick = () => { S.working = false; $('bWork').classList.remove('on'); S.bug = { x: W * 0.5, dir: 1 }; startChase(); };
+$('bNap').onclick = () => { S.working = false; $('bWork').classList.remove('on'); S.bug = null; S.mini = { x: blockPos(Math.max(0, S.pile - 1)).x - 10, phase: 'nap', t0: Date.now() }; };
+$('bNight').onclick = () => { S.night = !S.night; $('bNight').classList.toggle('on', S.night); };
+$('bMile').onclick = () => { S.life = Math.ceil(S.life / 1000) * 1000 - 10; addWrite(42); };
+</script>
+</body>
+</html>
