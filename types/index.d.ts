@@ -63,6 +63,8 @@ export type Prefs = {
   outfit: string
   /** Daily goal in code lines. */
   goal: number
+  /** Pane background id: none (the app's own), paper, sand, blush, slate or night. */
+  bg: string
   /** Pane sections switched on or off, by section id. */
   sections: Record<string, boolean>
 }

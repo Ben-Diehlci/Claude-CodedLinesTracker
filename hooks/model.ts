@@ -18,6 +18,18 @@ export const SECTIONS = [
   { id: 'badges', label: 'Badges' },
 ] as const
 
+/** Pane backgrounds: none keeps the app's own; the others are fixed colors, light or dark, and the pane's drawings follow. */
+export const BACKGROUNDS = [
+  { id: 'none', label: 'App default', color: '', mode: 'auto' },
+  { id: 'paper', label: 'Paper', color: '#F7F3EA', mode: 'light' },
+  { id: 'sand', label: 'Sand', color: '#EFE5D3', mode: 'light' },
+  { id: 'blush', label: 'Blush', color: '#F8EAE3', mode: 'light' },
+  { id: 'slate', label: 'Slate', color: '#30302E', mode: 'dark' },
+  { id: 'night', label: 'Night', color: '#1F1E1D', mode: 'dark' },
+] as const
+
+export const backgroundOf = (id: string) => BACKGROUNDS.find(b => b.id === id) ?? BACKGROUNDS[0]
+
 export const OUTFIT_CHOICES = ['auto', 'none', 'party', 'shades', 'crown', 'night'] as const
 
 export const defaultPrefs = (): Prefs => ({
@@ -27,6 +39,7 @@ export const defaultPrefs = (): Prefs => ({
   style: 'auto',
   outfit: 'auto',
   goal: DEFAULT_GOAL,
+  bg: 'none',
   sections: Object.fromEntries(SECTIONS.map(s => [s.id, !('off' in s)])),
 })
 

@@ -224,7 +224,7 @@ test('old prefs keep their toggles when the shape grows', async ($, on) => {
   expect(labels).toContain(' Pane on start: off')
   expect(labels).toContain(' Mascot: off')
   expect(labels).toContain(' Goal: 500')
-  expect((await pane.findAll({ type: 'Select' })).map((x: any) => x.props.value)).toEqual(['auto', 'auto'])
+  expect((await pane.findAll({ type: 'Select' })).map((x: any) => x.props.value)).toEqual(['auto', 'auto', 'none'])
   await pane.unmount()
 })
 
@@ -239,11 +239,42 @@ test('the mobile pane draws Buttons instead of Select', async ($, on) => {
   const labels = await buttons(mobile)
   expect(labels).toContain('Design: Auto')
   expect(labels).toContain(' Outfit: auto')
+  expect(labels).toContain(' Background: App default')
   await mobile.unmount()
 
   const desk = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
-  expect(await desk.findAll({ type: 'Select' })).toHaveLength(2)
+  expect(await desk.findAll({ type: 'Select' })).toHaveLength(3)
   await desk.unmount()
+})
+
+test('a chosen pane background fills the pane and fixes the drawings to light or dark', async ($, on) => {
+  stubs(on)
+  const m = memory(on)
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  // Default: no fill, the drawings follow the app's light or dark.
+  const plain = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(((await plain.drawn()) as any).props.backgroundColor).toBeUndefined()
+  expect((await plain.find({ type: 'Svg' }))?.props.source).toMatch(/prefers-color-scheme: dark/)
+  await plain.unmount()
+
+  expect(((await $.command.run({ command: 'linecount', args: 'background nope' })) as any).text).toMatch(/one of/)
+  expect(((await $.command.run({ command: 'linecount', args: 'background slate' })) as any).text).toMatch(/Slate/)
+  expect((m.get('prefs') as any).bg).toBe('slate')
+
+  const dark = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(((await dark.drawn()) as any).props.backgroundColor).toBe('#30302E')
+  const src = (await dark.find({ type: 'Svg' }))?.props.source as string
+  expect(src).not.toMatch(/prefers-color-scheme/)
+  expect(src).toMatch(/\.fg\{fill:#F5F4EE\}/)
+  expect((await dark.find({ type: 'Text', text: /^Sections$/ }))?.props.color).toBe('#9C9A92')
+  await dark.unmount()
+
+  // The terminal keeps its own background.
+  const term = await $.ui.mount({ ...PANE, surface: 'terminal' } as any)
+  expect(((await term.drawn()) as any).props.backgroundColor).toBeUndefined()
+  await term.unmount()
 })
 
 test('crossing 1,000 lines throws confetti', async ($, on) => {

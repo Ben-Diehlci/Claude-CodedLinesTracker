@@ -16,8 +16,10 @@ import {
 import type { Outfit } from './clawd'
 import { countLines, extOf } from './count'
 import {
+  BACKGROUNDS,
   DEFAULT_GOAL,
   EMPTY,
+  backgroundOf,
   MILESTONE,
   OUTFIT_CHOICES,
   SECTIONS,
@@ -417,7 +419,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'linecount',
       description:
-        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, goal <n>, section <name> on|off',
+        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, goal <n>, background <name>, section <name> on|off',
     })
 
     // Local timers only: no model call, nothing sent to the model.
@@ -462,6 +464,14 @@ export const register: Register = on => {
       await set({ outfit: value })
 
       return { text: `outfit: ${value}` }
+    }
+
+    if (what === 'background') {
+      const ids = BACKGROUNDS.map(b => b.id as string)
+      if (!value || !ids.includes(value)) return { text: `background: one of ${ids.join(', ')}` }
+      await set({ bg: value })
+
+      return { text: `pane background: ${backgroundOf(value).label}` }
     }
 
     if (what === 'goal') {

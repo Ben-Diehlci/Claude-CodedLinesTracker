@@ -2,6 +2,7 @@
 // Each returns { h, src } for a box `w` wide; the terminal draws the same sections as text (panes.tsx).
 import { clawdBody, canvasH } from './clawd'
 import { est, heatMap, rect, ring, svgDoc, text } from './draw'
+import type { Mode } from './draw'
 import { fmt } from './model'
 import type { View } from './model'
 
@@ -10,7 +11,13 @@ export type Piece = { h: number; src: string; alt: string }
 const TAG = { cls: 'mu', size: 10, bold: true, spacing: 1.2 } as const
 const LANG = ['cf', 'sa', 'bl', 'fl', 'pk']
 
-const piece = (w: number, h: number, inner: string, alt: string): Piece => ({ h, src: svgDoc(w, h, inner), alt })
+// Set once per pane draw: light, dark, or following the app.
+let mode: Mode = 'auto'
+export const setMode = (m: Mode) => {
+  mode = m
+}
+
+const piece = (w: number, h: number, inner: string, alt: string): Piece => ({ h, src: svgDoc(w, h, inner, mode), alt })
 
 const when = (day: string): string =>
   new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })

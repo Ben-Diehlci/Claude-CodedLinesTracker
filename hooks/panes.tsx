@@ -2,8 +2,8 @@
 import type { Prefs } from '../types'
 import { pack, sparkCells, sparkSvg } from './clawd'
 import { goalBar, heatCellsRaw } from './draw'
-import { PANE_SVG } from './panesvg'
-import { OUTFIT_CHOICES, SECTIONS, fmt, lastDays } from './model'
+import { PANE_SVG, setMode } from './panesvg'
+import { BACKGROUNDS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt, lastDays } from './model'
 import type { View } from './model'
 import { CLAY, SAND } from './styles/common'
 import type { Kit } from './styles/common'
@@ -24,6 +24,8 @@ export type PaneCtx = {
   p: Prefs
   /** Sets one preference and saves it. */
   set: (patch: Partial<Prefs>) => Promise<void>
+  /** Text colors for the chosen pane background (filled in by renderPane). */
+  ink?: Ink
 }
 
 const when = (day: string): string => {
@@ -59,30 +61,31 @@ const sections: Record<string, Section> = {
     )
   },
 
-  numbers: ({ kit, v }) => {
+  numbers: ({ kit, v, ink = inkFor('auto') }) => {
     const { Box, Text, Raster, Svg } = kit.ui
     const spark = lastDays(v.now, 30).map(d => v.days[d]?.code ?? 0)
+    const { fg, mu } = ink
 
     return (
       <Box flexDirection="column">
-        <Text color={CLAY} bold>{fmt(v.session.code)} <Text dimColor>code lines this session</Text></Text>
+        <Text color={CLAY} bold>{fmt(v.session.code)} <Text {...mu}>code lines this session</Text></Text>
         <Text color={CLAY}>{bar(v.session.code, v.session.all, 24)}</Text>
-        <Text color={SAND} bold>{fmt(v.session.all)} <Text dimColor>with comments</Text></Text>
-        <Text color={SAND}>{bar(v.session.all, v.session.all, 24)}</Text>
-        <Text dimColor>{fmt(v.session.comments)} comment lines, {fmt(v.session.blank)} blank skipped</Text>
+        <Text color={ink.sand} bold>{fmt(v.session.all)} <Text {...mu}>with comments</Text></Text>
+        <Text color={ink.sand}>{bar(v.session.all, v.session.all, 24)}</Text>
+        <Text {...mu}>{fmt(v.session.comments)} comment lines, {fmt(v.session.blank)} blank skipped</Text>
         <Text> </Text>
-        <Text color={SAND} bold>LAST 30 DAYS</Text>
+        <Text color={ink.sand} bold>LAST 30 DAYS</Text>
         {v.surface === 'terminal' ? (
           <Raster key="spark" columns={30} rows={3} cells={sparkCells(spark, 3)} />
         ) : (
           <Svg key="spark" alt="Code lines per day, last 30 days" width={300} height={44} source={sparkSvg(spark, 300, 44)} />
         )}
-        <Text bold>{v.sessions > 1 ? 'All sessions today ' : 'Today '}<Text bold>{fmt(v.today.code)} / {fmt(v.today.all)}</Text></Text>
-        <Text bold>All time <Text bold>{fmt(v.life.code)} / {fmt(v.life.all)}</Text></Text>
-        <Text dimColor>(code / with comments){v.sessions > 1 ? `, ${v.sessions} sessions active` : ''}</Text>
+        <Text {...fg} bold>{v.sessions > 1 ? 'All sessions today ' : 'Today '}{fmt(v.today.code)} / {fmt(v.today.all)}</Text>
+        <Text {...fg} bold>All time {fmt(v.life.code)} / {fmt(v.life.all)}</Text>
+        <Text {...mu}>(code / with comments){v.sessions > 1 ? `, ${v.sessions} sessions active` : ''}</Text>
         <Text> </Text>
-        <Text bold>{v.files} files, {v.writes} writes, {v.edits} edits</Text>
-        <Text bold>Pace <Text color={CLAY}>{Math.round(v.session.code / v.minutes)}</Text> code lines/min</Text>
+        <Text {...fg} bold>{v.files} files, {v.writes} writes, {v.edits} edits</Text>
+        <Text {...fg} bold>Pace <Text color={CLAY}>{Math.round(v.session.code / v.minutes)}</Text> code lines/min</Text>
       </Box>
     )
   },
@@ -182,13 +185,31 @@ const sections: Record<string, Section> = {
   },
 }
 
+/** Text props for a pane background: the app's own colors, or fixed ones that read on a fixed background. */
+type Ink = { fg: Record<string, unknown>; mu: Record<string, unknown>; sand: string }
+
+const inkFor = (mode: string): Ink =>
+  mode === 'light'
+    ? { fg: { color: '#1F1E1D' }, mu: { color: '#6B6A64' }, sand: '#A98049' }
+    : mode === 'dark'
+      ? { fg: { color: '#F5F4EE' }, mu: { color: '#9C9A92' }, sand: '#E3C79A' }
+      : { fg: {}, mu: { dimColor: true }, sand: '#B8925A' }
+
 const next = <T,>(list: readonly T[], cur: T): T => list[(list.indexOf(cur) + 1) % list.length]
 
 /** The "Look" area: toggles, design and outfit pickers (cycle buttons on mobile), goal, and one switch per section. */
-const look = ({ kit, v, p, set }: PaneCtx) => {
+const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
   const { Box, Button, Select, Text } = kit.ui
   const picker = v.surface !== 'mobile' && Select
   const styleName = (id: string) => (id === 'auto' ? 'Auto' : (DESIGNS.find(d => d.id === id)?.name ?? id))
+  const bgIds = BACKGROUNDS.map(b => b.id as string)
+  // The label is our own Text (not the Select's), so it can take the background's text color.
+  const pick = (key: string, label: string, value: string, options: { value: string; label: string }[], onSelect: (value: string) => Promise<void>) => (
+    <Box key={`row-${key}`} alignItems="center">
+      <Text {...ink.fg}>{`${label} `}</Text>
+      <Select key={key} value={value} options={options} onSelect={onSelect} />
+    </Box>
+  )
 
   const toggles = (
     <Box flexWrap="wrap">
@@ -203,31 +224,23 @@ const look = ({ kit, v, p, set }: PaneCtx) => {
     <Box flexDirection="column">
       {toggles}
       <Text> </Text>
-      <Text color={SAND} bold>LOOK</Text>
+      <Text color={ink.sand} bold>LOOK</Text>
       {picker ? (
         <Box flexDirection="column">
-          <Select
-            key="style"
-            label="Band design"
-            value={p.style}
-            options={STYLE_CHOICES.map(id => ({ value: id, label: styleName(id) }))}
-            onSelect={(value: string) => set({ style: value })}
-          />
-          <Select
-            key="outfit"
-            label="Clawd outfit"
-            value={p.outfit}
-            options={OUTFIT_CHOICES.map(id => ({ value: id, label: id }))}
-            onSelect={(value: string) => set({ outfit: value })}
-          />
+          {pick('style', 'Band design', p.style, STYLE_CHOICES.map(id => ({ value: id, label: styleName(id) })), value => set({ style: value }))}
+          {pick('outfit', 'Clawd outfit', p.outfit, OUTFIT_CHOICES.map(id => ({ value: id, label: id })), value => set({ outfit: value }))}
+          {v.surface !== 'terminal'
+            ? pick('bg', 'Pane background', p.bg, BACKGROUNDS.map(b => ({ value: b.id, label: b.label })), value => set({ bg: value }))
+            : null}
         </Box>
       ) : (
         <Box flexWrap="wrap">
           <Button key="style" label={`Design: ${styleName(p.style)}`} onPress={() => set({ style: next(STYLE_CHOICES, p.style) })} />
           <Button key="outfit" label={` Outfit: ${p.outfit}`} onPress={() => set({ outfit: next(OUTFIT_CHOICES, p.outfit) })} />
+          <Button key="bg" label={` Background: ${backgroundOf(p.bg).label}`} onPress={() => set({ bg: next(bgIds, backgroundOf(p.bg).id) })} />
         </Box>
       )}
-      <Text dimColor>Sections</Text>
+      <Text {...ink.mu}>Sections</Text>
       <Box flexWrap="wrap">
         {SECTIONS.map(s => (
           <Button
@@ -244,13 +257,18 @@ const look = ({ kit, v, p, set }: PaneCtx) => {
 /** Desktop pane width: the pane's column in pixels, less a margin. */
 const paneWidth = (cols: number): number => Math.max(240, Math.min(600, cols * 8 - 24))
 
-export const renderPane = (c: PaneCtx) => {
-  const { Box, Svg } = c.kit.ui
-  const on = SECTIONS.filter(s => c.p.sections[s.id] !== false)
-  const w = paneWidth(c.v.cols)
+export const renderPane = (ctx: PaneCtx) => {
+  const { Box, Svg } = ctx.kit.ui
+  const on = SECTIONS.filter(s => ctx.p.sections[s.id] !== false)
+  const w = paneWidth(ctx.v.cols)
+  // The terminal keeps its own background; elsewhere a chosen one fills the pane and fixes light or dark.
+  const bg = ctx.v.surface === 'terminal' ? backgroundOf('none') : backgroundOf(ctx.p.bg)
+  setMode(bg.mode)
+  const c: PaneCtx = { ...ctx, ink: inkFor(bg.mode) }
+  const fill = bg.color ? { backgroundColor: bg.color, paddingY: 1 } : {}
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column" paddingX={1} {...fill}>
       {on.map(s => {
         const draw = c.v.surface !== 'terminal' && Svg ? PANE_SVG[s.id] : undefined
         if (!draw) {
