@@ -15,6 +15,8 @@ import {
 } from './clawd'
 import type { Outfit } from './clawd'
 import { countLines, extOf } from './count'
+import { stageCells, stageLive } from './stage'
+import type { StageLive } from './stage'
 import {
   BACKGROUNDS,
   DEFAULT_GOAL,
@@ -230,7 +232,8 @@ let ownCache: Own | undefined
 let beats = 0
 let project = 'session'
 let curOutfit: Outfit = 'none'
-const mounted: Record<'band' | 'pane', boolean> = { band: false, pane: false }
+const mounted: Record<'band' | 'pane' | 'stage', boolean> = { band: false, pane: false, stage: false }
+let stage: { live: StageLive; cols: number; cells: string } | undefined
 let bandId = 'band'
 
 const sleepAfter = (now: number): number => (isNight(now) ? NIGHT_SLEEP_MS : SLEEP_MS)
@@ -356,19 +359,27 @@ const refresh = async ($: any) => {
   }
 }
 
-// Terminal only: repaint the Raster Clawd in place, no redraw.
+// Terminal only: repaint the Raster Clawd and the card's stage in place, no redraw.
 const tickAnim = async ($: any) => {
-  if (!mounted.band && !mounted.pane) return
+  if (!mounted.band && !mounted.pane && !mounted.stage) return
   const now = await $.clock.now()
   anim.asleep = now - lastActive > sleepAfter(now)
   const cells = clawdCells(frame(anim, now), curOutfit)
-  if (cells === lastCells) return
-  lastCells = cells
-  const targets: ['band' | 'pane', string][] = [['band', bandId], ['pane', PANE]]
-  for (const [name, requestId] of targets) {
-    if (!mounted[name]) continue
-    const r = await $.ui.blit({ requestId, key: 'clawd', cells })
-    if ('deny' in r) mounted[name] = false
+  if (cells !== lastCells) {
+    lastCells = cells
+    const targets: ['band' | 'pane', string][] = [['band', bandId], ['pane', PANE]]
+    for (const [name, requestId] of targets) {
+      if (!mounted[name]) continue
+      const r = await $.ui.blit({ requestId, key: 'clawd', cells })
+      if ('deny' in r) mounted[name] = false
+    }
+  }
+  if (mounted.stage && stage) {
+    const sc = stageCells({ ...stage.live, asleep: anim.asleep }, now, stage.cols)
+    if (sc === stage.cells) return
+    stage.cells = sc
+    const r = await $.ui.blit({ requestId: bandId, key: 'stage', cells: sc })
+    if ('deny' in r) mounted.stage = false
   }
 }
 
@@ -399,6 +410,7 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     today: t.today,
     life: t.life,
     flash: now - pu.at < FLASH_MS ? pu.n : 0,
+    flashAt: pu.at,
     mile: pu.mile > 0 && now - pu.mile < MILE_MS,
     mileAt: pu.mile,
     goal,
@@ -432,6 +444,14 @@ const kitFor = ($: any, e: any, v: View): Kit => {
     ui,
     face: FRAMES[Math.floor(v.now / 400) % FRAMES.length],
     clawdSvg: (px: number) => clawdSvg(px, { working: v.working, asleep: v.asleep, hop: v.hop, outfit: v.outfit, now: v.now }),
+    stage: (cols: number) => {
+      if (e.surface !== 'terminal' || !Raster) return null
+      stage = { live: stageLive(v), cols, cells: '' }
+      stage.cells = stageCells(stage.live, v.now, cols)
+      mounted.stage = true
+
+      return <Raster key="stage" columns={cols} rows={1} cells={stage.cells} />
+    },
     raster: () =>
       e.surface === 'terminal' && Raster ? (
         <Raster key="clawd" columns={W} rows={cellRows(v.outfit)} cells={clawdCells(frame(anim, v.now), v.outfit)} />
@@ -568,6 +588,7 @@ export const register: Register = on => {
     const p = await read($, prefs)
     if (!p.status || e.props.hasSurvey) {
       mounted.band = false
+      mounted.stage = false
 
       return next(e)
     }
@@ -579,7 +600,8 @@ export const register: Register = on => {
     curOutfit = v.outfit
     const terminal = e.surface === 'terminal'
     mounted.band = p.mascot && terminal && design.id !== 'compact'
-    if (mounted.band) {
+    mounted.stage = false
+    if (terminal) {
       bandId = (e as { requestId?: string }).requestId ?? 'band'
       lastCells = ''
     }

@@ -137,7 +137,7 @@ test('mascot off hides Clawd in the band and the pane', async ($, on) => {
     const band = await $.ui.mount({ ...BAND, surface } as any)
     expect(await clawds(band)).toHaveLength(0)
     if (surface === 'terminal') expect(await band.find({ type: 'Text', text: /LINES/ })).toBeTruthy()
-    else expect((await bandSvg(band))?.props.source).not.toMatch(/attributeName="visibility"/)
+    else expect((await bandSvg(band))?.props.source).not.toMatch(/fill="#d97757"/) // Clawd's own pixels (the stage's mini Clawd uses a class)
     await band.unmount()
   }
 })
@@ -173,7 +173,7 @@ test('auto picks card, or compact when the band is narrow', async ($, on) => {
   await $.tool.call(WRITE)
 
   const wide = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
-  expect((await bandSvg(wide))?.props.height).toBe(56)
+  expect((await bandSvg(wide))?.props.height).toBe(74)
   await wide.unmount()
   const narrow = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 50 }, surface: 'desktop' } as any)
   expect((await bandSvg(narrow))?.props.height).toBe(30)
@@ -351,12 +351,12 @@ test('crossing 1,000 lines throws confetti', async ($, on) => {
 
   await $.tool.call(WRITE)
   const calm = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
-  expect((await bandSvg(calm))?.props.source).not.toMatch(/animateTransform/)
+  expect((await bandSvg(calm))?.props.source).not.toMatch(/dur="1.1s"/) // confetti
   await calm.unmount()
 
   await $.tool.call({ tool: 'Write', file_path: '/a/big.ts', content: Array.from({ length: 1100 }, (_, i) => `const v${i} = ${i}`).join('\n') })
   const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
-  expect((await bandSvg(band))?.props.source).toMatch(/animateTransform/)
+  expect((await bandSvg(band))?.props.source).toMatch(/dur="1.1s"/)
   await band.unmount()
 
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
@@ -396,7 +396,7 @@ test('sessions right now lists projects, and an outfit shows by level', async ($
   await band.unmount()
 })
 
-test('terminal Clawd is repainted in place by the timer', async ($, on) => {
+test('terminal Clawd and the stage are repainted in place by the timer', async ($, on) => {
   stubs(on)
   memory(on)
   const clock = mock.clock(on, { now: T0 })
@@ -410,10 +410,10 @@ test('terminal Clawd is repainted in place by the timer', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
   await $.tool.call(WRITE) // a write makes him hop
-  await clock.advance(400)
+  await clock.advance(3000) // and the stage's idle loop reaches mini Clawd's nap
 
   expect(blits.length).toBeGreaterThan(0)
-  expect(new Set(blits)).toEqual(new Set(['clawd']))
+  expect(new Set(blits)).toEqual(new Set(['clawd', 'stage']))
   await band.unmount()
 })
 

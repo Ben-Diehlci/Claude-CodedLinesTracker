@@ -1,12 +1,16 @@
-// A: a hairline rounded card, big numbers, a twinkling daily-goal bar, session dots.
+// A: a hairline rounded card, big numbers, Clawd's stage (things happen while you work), session dots.
 import { fmt } from '../model'
 import type { View } from '../model'
-import { confetti, dither, dots, est, goalBar, rect, text } from '../draw'
+import { confetti, dots, est, goalBar, rect, text } from '../draw'
+import { stageSvg } from '../stage'
 import { CLAY, FLASH, SAND, bandSvg, bandWidth, clawdAt, clawdHeight, clawdWidth, mileLabel } from './common'
 import type { Design } from './common'
 
 const PX = 4
-const H = 56
+const H = 74
+const STAGE_Y = 33
+/** Cells the terminal stage gets. */
+const STAGE_COLS = 30
 
 const rowsOf = (v: View) => (v.rows.length ? v.rows : [{ active: true, hot: false }])
 
@@ -36,15 +40,15 @@ export const card: Design = {
       inner += rect(x, 9, pw, 20, 'fl', 10, 'fill-opacity=".18"') + text(x + pw / 2, 23, chip, { cls: 'fl', size: 12, bold: true, anchor: 'middle' })
     }
 
-    const side = w - tx > 520
-    const bw = Math.max(120, Math.min(520, w - tx - (side ? 200 : 150)))
-    inner += dither(tx, 33, bw, 16, v.goalFrac, fmt(v.today.code))
-    inner += text(tx + bw + 10, 46, `${fmt(v.today.code)} / ${fmt(v.goal)} lines today`, { cls: 'mu', size: 12 })
+    const side = w - tx > 420
+    const sw = Math.max(160, Math.min(640, w - tx - (side ? 170 : 14)))
+    inner += `<g transform="translate(${tx},${STAGE_Y})">${stageSvg(v, sw)}</g>`
     if (side) {
       const rows = rowsOf(v)
-      inner += dots(w - 16 - rows.length * 11 + 7, 15, rows)
-      inner += text(w - 16, 33, `${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}`, { cls: 'mu', size: 12, anchor: 'end' })
-      inner += text(w - 16, 49, `${fmt(v.life.code)} all time`, { cls: 'mu', size: 12, anchor: 'end' })
+      inner += dots(w - 16 - rows.length * 11 + 7, 17, rows)
+      inner += text(w - 16, 35, `${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}`, { cls: 'mu', size: 12, anchor: 'end' })
+      inner += text(w - 16, 51, `${fmt(v.today.code)} lines today`, { cls: 'mu', size: 12, anchor: 'end' })
+      inner += text(w - 16, 66, `${fmt(v.life.code)} all time`, { cls: 'mu', size: 12, anchor: 'end' })
     }
 
     return bandSvg(k, v, w, H, inner)
@@ -52,6 +56,7 @@ export const card: Design = {
   terminal: (v, k) => {
     const { Box, Text } = k.ui
     const rows = rowsOf(v)
+    const stage = k.stage(STAGE_COLS)
     const stats = (
       <Box flexDirection="column">
         <Text>
@@ -68,17 +73,19 @@ export const card: Design = {
             <Text> </Text>
           )}
         </Text>
-        <Text>
-          <Text color={CLAY}>{goalBar(v.goalFrac, 14)}</Text>
-          <Text bold>{` ${fmt(v.today.code)}`}</Text>
-          <Text dimColor>{`/${fmt(v.goal)} today  `}</Text>
-          {rows.map(r => (
-            <Text color={r.active ? CLAY : undefined} dimColor={!r.active}>{r.hot ? '◉' : '●'}</Text>
-          ))}
-          <Text dimColor>{` ${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}  `}</Text>
-          <Text bold>{fmt(v.life.code)}</Text>
-          <Text dimColor> all time</Text>
-        </Text>
+        <Box>
+          {stage ?? <Text color={CLAY}>{goalBar(v.goalFrac, 14)}</Text>}
+          <Text>
+            <Text bold>{` ${fmt(v.today.code)}`}</Text>
+            <Text dimColor>{' lines today  '}</Text>
+            {rows.map(r => (
+              <Text color={r.active ? CLAY : undefined} dimColor={!r.active}>{r.hot ? '◉' : '●'}</Text>
+            ))}
+            <Text dimColor>{` ${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}  `}</Text>
+            <Text bold>{fmt(v.life.code)}</Text>
+            <Text dimColor> all time</Text>
+          </Text>
+        </Box>
       </Box>
     )
     const mascot = v.mascot ? k.raster() : null

@@ -152,6 +152,8 @@ export type View = {
   life: Counts
   /** Code lines of the last write while its +N chip shows, else 0. */
   flash: number
+  /** When the last write landed (ms), for the stage's falling blocks. */
+  flashAt: number
   /** True while the milestone confetti and glow show. */
   mile: boolean
   mileAt: number

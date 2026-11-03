@@ -11,6 +11,8 @@ export type Kit = {
   raster: () => any
   /** Clawd as his own Svg source (for the classic band). */
   clawdSvg: (px: number) => string
+  /** The terminal stage as a Raster `cols` cells wide (repainted by the timer), or null when this surface has none. */
+  stage: (cols: number) => any
   /** A text face for designs without a Clawd drawing. */
   face: string
 }
