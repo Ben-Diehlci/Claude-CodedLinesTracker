@@ -661,7 +661,7 @@ export const register: Register = on => {
     }
 
     const v = await buildView($, e, p)
-    const design = pickDesign(p.style, v.cols)
+    const design = pickDesign(p.style, v.cols, await $.session.id())
     anim.working = v.working
     anim.asleep = v.asleep
     curOutfit = v.outfit

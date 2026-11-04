@@ -15,7 +15,7 @@ Toggle with the slash command `/linecount`:
 - `/linecount pane on|off` open the pane at session start
 - `/linecount mascot on|off` the animated face on the spinner
 - `/linecount reset` zeroes this session's counts (all-time totals stay)
-- `/linecount style auto|classic|card|arcade|compact` the band's design
+- `/linecount style auto|random|classic|card|arcade|compact` the band's design (auto = card, or compact when the band is narrow; random = a different design per chat, kept for that whole chat)
 - `/linecount outfit auto|none|<name>` Clawd's outfit (auto changes daily)
 - `/linecount background <name>` the pane's background color
 - `/linecount section <name> on|off` show or hide a pane section

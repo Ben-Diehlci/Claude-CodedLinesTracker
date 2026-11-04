@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import { pickDesign } from './styles'
 
 const T0 = 1_700_000_000_000
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
@@ -179,6 +180,20 @@ test('auto picks card, or compact when the band is narrow', async ($, on) => {
   const narrow = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 50 }, surface: 'desktop' } as any)
   expect((await bandSvg(narrow))?.props.height).toBe(30)
   await narrow.unmount()
+
+  // "random" keeps one design for the whole chat, and the narrow band still gets compact.
+  await $.command.run({ command: 'linecount', args: 'style random' })
+  const id = 'chat-1'
+  const heights = []
+  for (let i = 0; i < 3; i++) {
+    const r = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
+    heights.push((await bandSvg(r))?.props.height)
+    await r.unmount()
+  }
+  expect(new Set(heights).size).toBe(1)
+  expect(pickDesign('random', 120, id).id).toBe(pickDesign('random', 120, id).id)
+  expect(new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(x => pickDesign('random', 120, x).id)).size).toBeGreaterThan(1)
+  expect(pickDesign('random', 50, id).id).toBe('compact')
 })
 
 test('commands: style, outfit and section; the goal is gone', async ($, on) => {
@@ -228,7 +243,11 @@ test('old prefs keep their toggles when the shape grows', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  // With the app's own background the settings also hide behind the Settings button.
+  expect(await buttons(pane)).toEqual(['Settings'])
+  await pane.press({ key: 'settings' })
   const labels = await buttons(pane)
+  expect(labels).toContain('Hide settings')
   expect(labels).toContain(' Pane on start: off')
   expect(labels).toContain(' Mascot: off')
   expect(labels.some(l => /Goal/.test(l))).toBe(false)
@@ -244,6 +263,7 @@ test('the mobile pane draws Buttons instead of Select', async ($, on) => {
 
   const mobile = await $.ui.mount({ ...PANE, surface: 'mobile' } as any)
   expect(await mobile.findAll({ type: 'Select' })).toHaveLength(0)
+  await mobile.press({ key: 'settings' })
   const labels = await buttons(mobile)
   expect(labels).toContain('Design: Auto')
   expect(labels).toContain(' Outfit: auto')

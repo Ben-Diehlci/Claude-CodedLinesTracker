@@ -211,7 +211,8 @@ const next = <T,>(list: readonly T[], cur: T): T => list[(list.indexOf(cur) + 1)
 const look = ({ kit, v, p, set, ink = inkFor('auto') }: PaneCtx) => {
   const { Box, Button, Select, Text } = kit.ui
   const picker = v.surface !== 'mobile' && Select
-  const styleName = (id: string) => (id === 'auto' ? 'Auto' : (DESIGNS.find(d => d.id === id)?.name ?? id))
+  const styleName = (id: string) =>
+    id === 'auto' ? 'Auto' : id === 'random' ? 'Random each chat' : (DESIGNS.find(d => d.id === id)?.name ?? id)
   const bgIds = BACKGROUNDS.map(b => b.id as string)
   // The label is our own Text (not the Select's), so it can take the background's text color.
   const pick = (key: string, label: string, value: string, options: { value: string; label: string }[], onSelect: (value: string) => Promise<void>) => (
@@ -289,21 +290,27 @@ export const renderPane = (ctx: PaneCtx) => {
       </Box>
     )
   })
-  const controls = look({ ...ctx, ink: inkFor('auto') })
+  // The settings hide behind one Settings button (the app's highlighted button reads on any fill).
+  const { Button } = ctx.kit.ui
+  const open = ctx.p.lookOpen
+  const toggle = (
+    <Box key="settings-row" marginBottom={1}>
+      <Button key="settings" variant="primary" label={open ? 'Hide settings' : 'Settings'} onPress={() => ctx.set({ lookOpen: !open })} />
+    </Box>
+  )
+  const controls = open ? look({ ...ctx, ink: inkFor('auto') }) : null
   if (!bg.color) {
     return (
       <Box flexDirection="column" paddingX={1}>
         {body}
+        {toggle}
         {controls}
       </Box>
     )
   }
 
-  // A filled pane: the color fills it all, and the settings hide behind one Settings button (the app's
-  // highlighted button reads on any fill). Opened, they show below the fill, on the app's own background,
-  // where the app's buttons and menus (whose colors a plugin cannot set) read.
-  const { Button } = ctx.kit.ui
-  const open = ctx.p.lookOpen
+  // A filled pane: the color fills it all. Opened, the settings show below the fill, on the app's own
+  // background, where the app's buttons and menus (whose colors a plugin cannot set) read.
 
   // Closed, the fill is at least as tall as the pane's room, so the whole pane takes the color
   // ('100%' was ignored by the desktop pane).
@@ -313,9 +320,7 @@ export const renderPane = (ctx: PaneCtx) => {
     <Box flexDirection="column">
       <Box key="fill" flexDirection="column" backgroundColor={bg.color} paddingX={1} paddingTop={1} {...stretch}>
         {body}
-        <Box marginBottom={1}>
-          <Button key="settings" variant="primary" label={open ? 'Hide settings' : 'Settings'} onPress={() => ctx.set({ lookOpen: !open })} />
-        </Box>
+        {toggle}
       </Box>
       {open ? (
         <Box key="settings-area" flexDirection="column" paddingX={1} paddingTop={1}>
