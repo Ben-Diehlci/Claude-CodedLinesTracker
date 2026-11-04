@@ -9,6 +9,8 @@ test('dump', async ($, on) => {
     's-o1': { t: T0 - 1000, w: T0 + 2000, proj: 'web-app', life: c(900), days: { [key]: c(268) }, hours: { d: key, v: [0,0,0,0,0,0,0,0,12,40,88,64,10,30,52,16,0,0,0,0,0,0,0,0] }, owl: true, exts: ['ts', 'php'] },
     's-o2': { t: T0 - 200000, w: 0, proj: 'docs-site', life: c(132), days: { [key]: c(132) }, hours: { d: '', v: [] }, owl: false, exts: [] },
     base: { life: c(17400), days, folded: [] },
+    // The day's first chat started an hour ago, so the stage shows its usual scenes, not the morning one.
+    morning: { d: key, at: T0 - 3_600_000 },
   })
   const clock = mock.clock(on, { now: T0 })
   await $.session.start({ cwd: '/x/CodedLinesTracker', surface: 'desktop', isInteractive: true })

@@ -1,27 +1,147 @@
-# Claude-CodedLinesTracker
+# Lines Tracker for Claude Code
 
-A Claude Code mod that counts the lines of code Claude writes. It runs inside the app and uses no model tokens: it watches Claude's Write and Edit actions and counts the lines itself.
+A Claude Code mod that counts the lines of code Claude writes, and keeps you company while it does.
 
-Blank lines are always skipped. Every total is shown two ways: code only, and with comments. The pane also shows comment lines, files touched, writes and edits, pace per minute, totals for the session, today and all time, the top file types and the biggest files.
+It runs inside Claude Code and uses **no model tokens**: it watches Claude's Write and Edit actions and counts the lines itself, on your computer. Blank lines are never counted; every total is shown two ways, code only and with comments.
 
-Where it shows up: a boxed band above the prompt box, a side pane, and a small animated face beside the working spinner.
+![The band above the prompt: today's lines, Clawd, and his stage](docs/images/band-card.svg)
 
-The band has Clawd, a pixel crab who wears a different outfit each day, and a small stage where scenes play (a new one every 30 seconds, idle or working, a wake-up scene for the day's first chat, a night scene after 10 pm). A pile on the stage shows today's lines: a block per 100, a gold column per 1,000. The pane's two rings show code lines by model, today and all time.
+## What you get
 
-Toggle with the slash command `/linecount`:
+**A band above the prompt box** with today's lines (every open chat added up), this chat's lines, the all-time total, and Clawd, a small pixel crab.
 
-- `/linecount` shows the pane and a one-line summary
-- `/linecount status on|off` band above the prompt
-- `/linecount pane on|off` open the pane at session start
-- `/linecount mascot on|off` the animated face on the spinner
-- `/linecount reset` zeroes this session's counts (all-time totals stay)
-- `/linecount style auto|random|classic|card|arcade|compact` the band's design (auto = card, or compact when the band is narrow; random = a different design per chat, kept for that whole chat)
-- `/linecount outfit auto|none|<name>` Clawd's outfit (auto changes daily)
-- `/linecount background <name>` the pane's background color
-- `/linecount section <name> on|off` show or hide a pane section
+- **Clawd** blinks, types while Claude works, hops when lines are written, and does tricks when idle (wave, dance, spin, peek, sneeze and more). He wears a different outfit each day.
+- **The stage** beside him plays a new little scene every 30 seconds: idle ones (a bug chase, a butterfly, juggling, a coffee break, sweeping, a paper airplane...) and working ones (code rain, an editor typing, a build bar, a hamster wheel...). The day's first chat opens with a wake-up scene, and after 10 pm a night scene.
+- **The pile** at the stage's right end is today's work: a block per 100 code lines, a gold column per 1,000.
+- After each write a green **+N** shows how many lines just landed; every 1,000 lifetime lines sets off confetti.
 
-The status and mascot toggles are also buttons in the pane.
+A busy day, with gold columns on the pile:
 
-Limits: only Write and Edit are counted (code made by shell commands is not). Comment detection is by file type and is a heuristic. Counting starts when the mod is turned on. Lines by model are tracked from 2026-11-03; a subagent's lines count under the chat's model.
+![A busy day: three gold columns](docs/images/band-card-busy.svg)
 
-Install globally: `claude plugin marketplace add Ben-Diehlci/Claude-CodedLinesTracker` then `claude plugin install lines-tracker@claude-codedlinestracker --scope user` (the repo is private, so sign in to GitHub as Ben-Diehlci first).
+A few of the stage's scenes:
+
+| | |
+|---|---|
+| ![Bug chase](docs/images/scene-bug-chase.svg) | ![Builder](docs/images/scene-builder.svg) |
+| ![Butterfly](docs/images/scene-butterfly.svg) | ![Code rain](docs/images/scene-code-rain.svg) |
+| ![Build bar](docs/images/scene-build-bar.svg) | ![Morning](docs/images/scene-morning.svg) |
+
+Clawd's wardrobe (on "auto" he picks one a day, some days none, and a nightcap after 10 pm):
+
+![Every outfit](docs/images/outfits.svg)
+
+**A side pane** with the details: Clawd's level, this chat's split of code, comments and blank lines, two rings of code lines by model (today and all time), the last 4 weeks as a heat strip with your streak, the chats writing right now, file types, the biggest files, and badges. It can sit on the app's own background or a color of your choice, and every section can be switched off.
+
+| App background | Night background |
+|---|---|
+| ![The pane](docs/images/pane.svg) | ![The pane on the Night background](docs/images/pane-night.svg) |
+
+**Other band designs**, if you prefer them (`/linecount style <name>`):
+
+![Classic](docs/images/band-classic.svg)
+![Arcade](docs/images/band-arcade.svg)
+![Compact](docs/images/band-compact.svg)
+
+The pictures above are drawn by the mod itself with sample numbers (`design/preview/export.sh` makes them). They follow your system's light or dark setting, as the mod does.
+
+## Install
+
+You need Claude Code (the terminal `claude` command, or the Code tab of the Claude desktop app). The repository is private for now, so you also need access to it on GitHub and to be signed in to GitHub on your computer.
+
+### The easy way
+
+Run these two commands in a terminal:
+
+```bash
+claude plugin marketplace add Ben-Diehlci/Claude-CodedLinesTracker
+```
+
+```bash
+claude plugin install lines-tracker@claude-codedlinestracker --scope user
+```
+
+Then, in any open Claude Code chat, type `/reload-plugins` (or start a new chat). The band shows up above the prompt after your next message, and `/linecount` opens the pane.
+
+You can do the same from inside Claude Code instead of a terminal: type `/plugin`, add the marketplace `Ben-Diehlci/Claude-CodedLinesTracker`, and install `lines-tracker` from it.
+
+To get a newer version later:
+
+```bash
+claude plugin marketplace update claude-codedlinestracker
+```
+
+```bash
+claude plugin update lines-tracker@claude-codedlinestracker
+```
+
+### The harder way (from your own copy)
+
+Use this if you want to change the mod, or to run it without the GitHub marketplace. You keep a copy of the code on your computer and Claude Code loads it from there.
+
+1. Get the code:
+
+   ```bash
+   git clone https://github.com/Ben-Diehlci/Claude-CodedLinesTracker.git
+   ```
+
+2. Check that it is sound (this reads the mod the way Claude Code will, and runs its tests):
+
+   ```bash
+   cd Claude-CodedLinesTracker && claude plugin validate . && claude plugin test .
+   ```
+
+3. Either try it in one session only:
+
+   ```bash
+   claude --plugin-dir /full/path/to/Claude-CodedLinesTracker
+   ```
+
+   or install it for good from your copy (the folder is its own marketplace):
+
+   ```bash
+   claude plugin marketplace add /full/path/to/Claude-CodedLinesTracker
+   ```
+
+   ```bash
+   claude plugin install lines-tracker@claude-codedlinestracker --scope user
+   ```
+
+Installed this way, Claude Code reads the mod straight from your folder: after you edit a file, `/reload-plugins` in a chat picks up the change.
+
+To remove it either way: `claude plugin uninstall lines-tracker@claude-codedlinestracker`.
+
+## Using it
+
+Everything is under one slash command, `/linecount`:
+
+| Command | What it does |
+|---|---|
+| `/linecount` | Opens the pane and shows a one-line summary |
+| `/linecount status on\|off` | The band above the prompt |
+| `/linecount pane on\|off` | Open the pane when a chat starts |
+| `/linecount mascot on\|off` | Clawd (and the little face on the working spinner) |
+| `/linecount style auto\|card\|classic\|arcade\|compact` | The band's design ("auto" is card, or compact when the window is narrow) |
+| `/linecount outfit auto\|none\|<name>` | Clawd's outfit: "auto" changes daily, or pick one (crown, tophat, cowboy, wizard, viking, ...) |
+| `/linecount background <name>` | The pane's background: none (the app's own), paper, sand, blush, slate or night |
+| `/linecount section <name> on\|off` | Show or hide a pane section: header, numbers, rings, heat, sessions, languages, files, badges |
+| `/linecount reset` | Zeroes this chat's counts (today and all-time totals stay) |
+
+Most of these are also buttons and pickers at the bottom of the pane (behind a Settings button when the pane has a background color).
+
+## Good to know
+
+- Only Claude's Write and Edit actions are counted; code made by shell commands is not.
+- Comments are told apart by file type, which is a good guess rather than a perfect one.
+- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on; older lines show as "earlier". A subagent's lines count under its chat's model.
+- Totals live on each computer (Claude Code's plugin store); two Macs keep separate counts.
+- Every number stays on your computer. Nothing is sent anywhere, and no model is asked anything.
+
+## For developers
+
+- `hooks/register.tsx` wires it up (events, the store, timers); `hooks/model.ts` works out the numbers; designs only draw them.
+- Band designs: `hooks/styles/` (one file each). The desktop band is one SVG, which the app caps at 128 KB.
+- Clawd: `hooks/clawd.ts` (sprite, outfits, tricks). The stage: `hooks/stage.ts` and `hooks/scenes.ts`. The desktop pane: `hooks/panesvg.ts`; the terminal pane: `hooks/panes.tsx`.
+- Tests: `claude plugin test .`. Design mockups are in `design/`; `design/preview/preview.sh` draws every design into a page to compare, and `design/preview/export.sh` remakes the pictures in this README.
+
+License: see [LICENSE](LICENSE).

@@ -1,0 +1,24 @@
+// Pictures for the README that are not mounted trees: every outfit, and a few stage scenes on their own.
+import { test } from 'claude-code/testing'
+import { OUTFITS, canvasH, grid, pixelHex, pixelPaths } from './clawd'
+import { svgDoc } from './draw'
+import { sceneSvg } from './scenes'
+
+test('docs pictures', () => {
+  const cell = 104
+  let sheet = ''
+  OUTFITS.forEach((o, i) => {
+    const x = (i % 7) * cell
+    const y = Math.floor(i / 7) * 92
+    // A still Clawd (the band's one carries his whole trick timeline, far too heavy for a sheet of 21).
+    const art = pixelPaths(grid({}, o), 6, c => `fill="${pixelHex(c)}"`)
+    sheet += `<g transform="translate(${x + 10},${y + 60 - canvasH(o) * 6})">${art}</g><text x="${x + cell / 2}" y="${y + 84}" class="mu" font-size="12" text-anchor="middle">${o}</text>`
+  })
+  console.log('@@outfits@@' + svgDoc(7 * cell, Math.ceil(OUTFITS.length / 7) * 92, sheet) + '@@END@@')
+  for (const name of ['bug chase', 'builder', 'butterfly', 'code rain', 'build bar', 'morning']) {
+    const inner = `<defs><clipPath id="stg"><rect x="1" y="1" width="438" height="32" rx="7"/></clipPath><clipPath id="belt"><rect x="16" y="0" width="404" height="34"/></clipPath></defs>` +
+      `<rect x=".5" y=".5" width="439" height="33" rx="8" fill="none" class="hs"/><rect x="6" y="31" width="428" height="1" class="hf"/>` +
+      `<g clip-path="url(#stg)">${sceneSvg(name, 420, 1_700_000_007_000, name === 'morning' ? 0 : undefined)}</g>`
+    console.log('@@scene-' + name.replace(/ /g, '-') + '@@' + svgDoc(440, 34, inner) + '@@END@@')
+  }
+})
