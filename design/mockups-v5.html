@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two Macs Combined</title>
+<style>
+  :root, [data-theme="light"] {
+    --bg: #FAF9F5; --panel: #F2F1EC; --fg: #1F1E1D; --muted: #6B6A64; --hair: rgba(31,30,29,.18);
+    --clay: #C6613F; --sand: #A98049; --flash: #4F8A3C; --gold: #C9921F; --blue: #5565C8;
+  }
+  [data-theme="dark"] {
+    --bg: #262624; --panel: #30302E; --fg: #F5F4EE; --muted: #9C9A92; --hair: rgba(245,244,238,.2);
+    --clay: #D97757; --sand: #E3C79A; --flash: #7FB069; --gold: #E8B84A; --blue: #7A8CE0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, system-ui, sans-serif; padding: 24px 16px 64px; }
+  .wrap { max-width: 900px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 13px; margin: 30px 0 8px; color: var(--clay); text-transform: uppercase; letter-spacing: .1em; }
+  p.note { color: var(--muted); margin: 0 0 12px; max-width: 700px; }
+  button { background: var(--panel); color: var(--fg); border: 1px solid var(--hair); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .flow { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+  .box { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; flex: 1 1 200px; background: var(--panel); }
+  .box b { display: block; margin-bottom: 4px; }
+  .box small { color: var(--muted); display: block; }
+  .arrow { align-self: center; color: var(--muted); font-size: 20px; }
+  code { background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; padding: 0 4px; font-size: 12px; }
+  .card { border: 1px solid var(--hair); border-radius: 12px; padding: 10px 14px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .card .lab { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .card .big { font-size: 26px; font-weight: 700; line-height: 1.1; }
+  .card .col { min-width: 90px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--hair); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .laptop { background: var(--clay); } .desk { background: var(--blue); }
+  .pane { border: 1px solid var(--hair); border-radius: 12px; padding: 12px 14px; max-width: 420px; }
+  .row { display: grid; grid-template-columns: 90px 1fr 70px; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; }
+  .bar { height: 10px; border-radius: 5px; background: var(--panel); border: 1px solid var(--hair); overflow: hidden; }
+  .bar i { display: block; height: 100%; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .warn { border-left: 3px solid var(--gold); padding: 6px 12px; background: var(--panel); border-radius: 0 8px 8px 0; max-width: 700px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Both Macs, one count</h1>
+<p class="note">Today each Mac counts alone. This shows how the two counts could be added together, and what you would see. Numbers are sample data. Everything stays local, no tokens.</p>
+<button id="bTheme">Light / dark</button>
+
+<h2>How it would work</h2>
+<div class="flow">
+  <div class="box"><b>Laptop</b>writes only its own file<small><code>totals-laptop.json</code></small></div>
+  <div class="arrow">&rarr;</div>
+  <div class="box"><b>Synced folder</b>inside My Files (Syncthing carries it)<small>one small file per Mac, a few KB</small></div>
+  <div class="arrow">&larr;</div>
+  <div class="box"><b>Desktop</b>writes only its own file<small><code>totals-desktop.json</code></small></div>
+</div>
+<p class="note" style="margin-top:10px">Each Mac reads every file in the folder and adds them up. A Mac never edits the other one's file, so Syncthing has nothing to conflict over. If the other Mac is off, its last numbers still show, with "last seen" next to them.</p>
+<div class="warn"><b>Check first:</b> the mod may only be allowed to use Claude's own store, not read or write files. I would test that before building. If it can't, a tiny helper script (run by a hook when a chat ends) could write the file instead, and the mod would still read it.</div>
+
+<h2>The band (card design)</h2>
+<div class="card">
+  <div class="col"><div class="lab">Code lines today</div><div class="big">1,904</div></div>
+  <div class="col"><div class="lab">Lines with comments</div><div class="big">2,310</div></div>
+  <div class="col"><div class="lab">All time, both Macs</div><div class="big">48,620</div></div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <span class="chip"><span class="dot laptop"></span>Laptop 1,044 today</span>
+    <span class="chip"><span class="dot desk"></span>Desktop 860 today</span>
+  </div>
+</div>
+<p class="muted">The big numbers become the sum. Two small chips show each Mac's share. "This session" stays this Mac only.</p>
+
+<h2>The pane: new "Computers" section</h2>
+<div class="pane">
+  <b>Computers</b>
+  <div class="row"><span><span class="dot laptop"></span> Laptop</span><span class="bar"><i class="laptop" style="width:55%"></i></span><span>1,044</span></div>
+  <div class="row"><span><span class="dot desk"></span> Desktop</span><span class="bar"><i class="desk" style="width:45%"></i></span><span>860</span></div>
+  <div class="muted">Lines today. Laptop: this Mac now. Desktop: last seen 12:48 PM.</div>
+  <div class="row" style="margin-top:12px"><span>All time</span><span class="bar"><i style="width:100%;background:linear-gradient(90deg,var(--clay) 62%,var(--blue) 62%)"></i></span><span>48,620</span></div>
+</div>
+<p class="muted">Rings, heat map, languages, files and badges would use the combined numbers. Sessions right now would list each Mac's open chats, tagged with the Mac's name.</p>
+
+<h2>Choices for you</h2>
+<div class="opts">
+  <div class="box"><b>1. Combined or split</b><small>A setting "Count: this Mac / both Macs", also <code>/linecount count both</code>.</small></div>
+  <div class="box"><b>2. Mac names</b><small>Taken from the computer's name (Laptop, Desktop), or set by you with <code>/linecount name</code>.</small></div>
+  <div class="box"><b>3. Where the files live</b><small>A folder in My Files that Syncthing already shares, for example <code>claude-config/lines-tracker/</code>.</small></div>
+  <div class="box"><b>4. Starting point</b><small>Each Mac's earlier counts stay in its own file, so the combined all-time number starts as the sum of what both have so far.</small></div>
+</div>
+</div>
+<script>
+document.getElementById('bTheme').onclick = () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+};
+</script>
+</body>
+</html>

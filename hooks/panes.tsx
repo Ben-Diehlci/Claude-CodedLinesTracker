@@ -2,6 +2,7 @@
 import type { Prefs } from '../types'
 import { pack } from './clawd'
 import { goalBar, heatStripCells } from './draw'
+import { seenLabel } from './peers'
 import { PANE_SVG, setMode } from './panesvg'
 import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt } from './model'
 import type { View } from './model'
@@ -123,6 +124,22 @@ const sections: Record<string, Section> = {
           {`${v.streak}-day streak (best ${v.bestStreak}).`}
           {v.best ? ` Busiest day: ${when(v.best.day)}, ${fmt(v.best.code)} lines.` : ''}
         </Text>
+      </Box>
+    )
+  },
+
+  computers: ({ kit, v }) => {
+    const { Box, Text } = kit.ui
+    const max = Math.max(1, ...v.machines.map(m => m.today))
+
+    return (
+      <Box flexDirection="column">
+        <Text color={SAND} bold>{v.countBoth ? 'COMPUTERS (BOTH COUNTED)' : 'COMPUTERS (THIS ONE COUNTED)'}</Text>
+        {v.machines.map(m => (
+          <Text>
+            <Text color={[CLAY, BLUE, SAND, GREEN][m.slot % 4]}>●</Text> {m.name} <Text color={SAND}>{bar(m.today, max, 10)}</Text> <Text dimColor>{`${fmt(m.today)} today, ${fmt(m.life)} all time${m.mine ? '' : `, seen ${seenLabel(m, v.now)}`}`}</Text>
+          </Text>
+        ))}
       </Box>
     )
   },
@@ -267,7 +284,7 @@ const paneWidth = (cols: number): number => Math.max(240, Math.min(1600, cols * 
 
 export const renderPane = (ctx: PaneCtx) => {
   const { Box, Svg } = ctx.kit.ui
-  const on = SECTIONS.filter(s => ctx.p.sections[s.id] !== false)
+  const on = SECTIONS.filter(s => ctx.p.sections[s.id] !== false && (s.id !== 'computers' || ctx.v.machines.length > 1))
   const w = paneWidth(ctx.v.cols)
   // The terminal keeps its own background; elsewhere a chosen one fills the pane and fixes light or dark.
   const bg = ctx.v.surface === 'terminal' ? backgroundOf('none') : backgroundOf(ctx.p.bg)

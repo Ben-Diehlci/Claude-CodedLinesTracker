@@ -4,6 +4,7 @@ import { clawdBody, canvasH } from './clawd'
 import { donut, est, heatStrip, rect, svgDoc, text } from './draw'
 import type { Mode } from './draw'
 import { HEAT_WEEKS, fmt, modelColor } from './model'
+import { seenLabel } from './peers'
 import type { View } from './model'
 
 export type Piece = { h: number; src: string; alt: string }
@@ -150,6 +151,41 @@ export const sessionsSvg = (v: View, w: number): Piece => {
   return piece(w, h, s, `Sessions right now: ${rows.map(r => `${r.name} ${fmt(r.code)}`).join(', ')}`)
 }
 
+/** Machine colors by slot, the same on every Mac. */
+export const MACHINE_FILL = ['cf', 'bl', 'sa', 'fl']
+
+/** One row per Mac (color dot, model name, share bar, lines today), then all time as one bar split by color. */
+export const computersSvg = (v: View, w: number): Piece => {
+  const ms = v.machines
+  const rh = 21
+  const max = Math.max(1, ...ms.map(m => m.today))
+  const { barX, barW } = barsFor(w)
+  let s = text(0, 10, v.countBoth ? 'COMPUTERS (BOTH COUNTED)' : 'COMPUTERS (THIS ONE COUNTED)', TAG)
+  ms.forEach((m, i) => {
+    const y = 16 + i * rh + rh / 2
+    const cls = MACHINE_FILL[m.slot % 4]
+    s += `<circle cx="5" cy="${y}" r="4" class="${cls}"/>`
+    s += text(18, y + 4.5, clip(m.name, Math.floor((barX - 26) / 7)), { cls: 'fg', size: 13 })
+    s += rect(barX, y - 3, Math.max(4, barW * (m.today / max)), 6, cls, 3)
+    s += text(w, y + 4.5, fmt(m.today), { cls: 'mu', size: 13, anchor: 'end' })
+  })
+  const y2 = 16 + ms.length * rh + 6
+  const total = Math.max(1, ms.reduce((n, m) => n + m.life, 0))
+  s += text(0, y2 + 10, 'ALL TIME', TAG)
+  const bw = Math.max(60, w - 80)
+  let x = 0
+  for (const m of ms) {
+    const mw = bw * (m.life / total)
+    s += rect(x, y2 + 16, mw, 8, MACHINE_FILL[m.slot % 4], 0)
+    x += mw
+  }
+  s += text(w, y2 + 24, fmt(total), { cls: 'mu', size: 13, anchor: 'end' })
+  const seen = ms.filter(m => !m.mine).map(m => `${m.name}: ${seenLabel(m, v.now)}`).join(', ')
+  s += text(0, y2 + 42, `Lines today per Mac. Last seen: ${seen}`, { cls: 'mu', size: 11 })
+
+  return piece(w, y2 + 50, s, `Computers: ${ms.map(m => `${m.name} ${fmt(m.today)} today, ${fmt(m.life)} all time`).join('; ')}`)
+}
+
 /** Row bars grow with the pane (a quarter of it, 70 to 240 px), ending 52 px before the number at the right edge. */
 const barsFor = (w: number): { barX: number; barW: number } => {
   const barW = Math.round(Math.max(70, Math.min(240, w * 0.25)))
@@ -268,6 +304,7 @@ export const PANE_SVG: Record<string, (v: View, w: number) => Piece> = {
   header: headerSvg,
   numbers: detailsSvg,
   rings: ringsSvg,
+  computers: computersSvg,
   heat: heatSvg,
   sessions: sessionsSvg,
   languages: languagesSvg,

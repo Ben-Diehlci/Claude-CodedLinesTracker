@@ -32,6 +32,21 @@ export type Row = {
   hot: boolean
 }
 
+/** One Mac in the two-Mac count (this one, or another that left its totals file in the synced folder). */
+export type Machine = {
+  /** "MacBook Pro", "Mac Studio" (two of the same model get " 2"). */
+  name: string
+  /** True for the Mac this chat runs on. */
+  mine: boolean
+  /** Code lines today and all time on that Mac. */
+  today: number
+  life: number
+  /** When that Mac last wrote its file (ms); now for this one. */
+  seen: number
+  /** Color slot: 0 clay, 1 blue, 2 sand, 3 green. Same on every Mac (by name order). */
+  slot: number
+}
+
 /** Sums over every session on this Mac (each session writes only its own store key). */
 export type Totals = {
   life: Counts
@@ -52,6 +67,8 @@ export type Totals = {
   modelsToday: Record<string, number>
   /** Code lines per model since tracking began (2026-11-03); life.code less their sum came before. */
   modelsLife: Record<string, number>
+  /** Every Mac known (this one first), empty when only this one. With count "both" the fields above already include the others. */
+  machines: Machine[]
 }
 
 /** The last write: when, how many code lines (the +N flash), and when a 1,000 milestone was crossed. */
@@ -69,6 +86,10 @@ export type Prefs = {
   bg: string
   /** On a filled pane: whether the settings are shown (below the pane), or tucked behind one Settings button. */
   lookOpen: boolean
+  /** Whose lines the numbers show: both (every Mac with a file in the synced folder) or this (this Mac only). */
+  count: string
+  /** Folder shared between this Mac and the others (by Syncthing, iCloud Drive, Dropbox ...). Empty: nothing is written or read. Set per Mac with /linecount sync. */
+  syncDir: string
   /** Pane sections switched on or off, by section id. */
   sections: Record<string, boolean>
 }

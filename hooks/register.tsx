@@ -38,6 +38,8 @@ import {
 } from './model'
 import type { View } from './model'
 import { renderPane } from './panes'
+import { PEER_PREFIX, WRITE_CHANGED_MS, WRITE_IDLE_MS, expandDir, mergePeers, parsePeer, safeId, toPeerFile } from './peers'
+import type { PeerFile } from './peers'
 import { DESIGNS, STYLE_CHOICES, pickDesign } from './styles'
 import type { Kit } from './styles/common'
 
@@ -73,7 +75,7 @@ const session = atom({ plugin: 'lines-tracker', key: 'session' } as const, fresh
 const prefs = atom(
   { plugin: 'lines-tracker', key: 'prefs' } as const,
   defaultPrefs(),
-  { shape: 'prefs-2' },
+  { shape: 'prefs-3' },
 )
 const noTotals = (): Totals => ({
   life: { ...EMPTY },
@@ -86,9 +88,10 @@ const noTotals = (): Totals => ({
   exts: 0,
   modelsToday: {},
   modelsLife: {},
+  machines: [],
 })
 const totals = atom({ plugin: 'lines-tracker', key: 'totals' } as const, noTotals(), {
-  shape: 'totals-4',
+  shape: 'totals-5',
 })
 const pulse = atom({ plugin: 'lines-tracker', key: 'pulse' } as const, { at: 0, n: 0, mile: 0 } as Pulse, {
   shape: 'pulse-2',
@@ -206,6 +209,7 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     exts: exts.length,
     modelsToday,
     modelsLife,
+    machines: [],
   }
 }
 
@@ -371,8 +375,87 @@ const newOwn = (now: number): Own => ({
   exts: [],
 })
 
+/* ---- two Macs: this Mac's totals go to a file in the synced folder, the other Macs' files are read back ---- */
+
+type Machine = { id: string; name: string }
+let machine: Machine | null | undefined
+const peerCache = new Map<string, { mtime: number; file: PeerFile | undefined }>()
+let lastPublished = { at: 0, json: '' }
+
+/** Who this Mac is: the host name (stable, the file's name) and the model, "MacBook Pro". Null when commands cannot run. */
+const whoAmI = async ($: any): Promise<Machine | null> => {
+  if (machine !== undefined) return machine
+  try {
+    const saved = (await $.store.get('machine')) as Machine | undefined
+    if (saved?.id) return (machine = saved)
+    const host = await $.process.run(['scutil', '--get', 'LocalHostName'])
+    const hw = await $.process.run(['system_profiler', 'SPHardwareDataType'])
+    const model = /Model Name:\s*(.+)/.exec(hw.stdout)?.[1]?.trim()
+    const id = safeId(host.stdout.trim())
+    machine = host.exitCode === 0 && host.stdout.trim() ? { id, name: model || 'Mac' } : null
+    if (machine) await $.store.set('machine', machine)
+  } catch {
+    machine = null
+  }
+
+  return machine
+}
+
+/** The shared folder from the settings (home spelled out), '' when none is set. */
+const peerFolder = async ($: any): Promise<string> => {
+  const dir = (await read($, prefs)).syncDir
+  if (!dir) return ''
+
+  return expandDir(dir, (await $.env.get('HOME')) ?? '')
+}
+
+/** Every Mac's file in the folder (read again only when its modified time changed). */
+const readPeers = async ($: any): Promise<PeerFile[]> => {
+  const dir = await peerFolder($)
+  if (!dir) return []
+  let entries: { name: string; kind: string; mtimeMs: number }[] = []
+  try {
+    entries = await $.fs.list(dir)
+  } catch {
+    return []
+  }
+  const out: PeerFile[] = []
+  for (const e of entries) {
+    if (!e.name.startsWith(PEER_PREFIX) || !e.name.endsWith('.json')) continue
+    const hit = peerCache.get(e.name)
+    if (hit && hit.mtime === e.mtimeMs) {
+      if (hit.file) out.push(hit.file)
+      continue
+    }
+    const file = parsePeer(await $.fs.read(`${dir}/${e.name}`).catch(() => ''))
+    peerCache.set(e.name, { mtime: e.mtimeMs, file })
+    if (file) out.push(file)
+  }
+
+  return out
+}
+
+const publish = async ($: any, me: Machine, mine: Totals, now: number) => {
+  const dir = await peerFolder($)
+  if (!dir) return
+  const file = toPeerFile(me.id, me.name, now, mine)
+  const json = JSON.stringify({ ...file, at: 0 })
+  const changed = json !== lastPublished.json
+  const wait = changed ? WRITE_CHANGED_MS : WRITE_IDLE_MS
+  if (now - lastPublished.at < wait) return
+  lastPublished = { at: now, json }
+  await $.fs.write(`${dir}/${PEER_PREFIX}${me.id}.json`, JSON.stringify(file))
+}
+
 const syncTotals = async ($: any, now: number) => {
-  const next = await sumSessions($, now)
+  const mine = await sumSessions($, now)
+  const me = (await peerFolder($)) ? await whoAmI($) : null
+  let next = mine
+  if (me) {
+    await publish($, me, mine, now).catch(() => {})
+    const mode = (await read($, prefs)).count
+    next = mergePeers(mine, me.id, me.name, await readPeers($), now, mode)
+  }
   const cur = await read($, totals)
   if (JSON.stringify(cur) !== JSON.stringify(next)) await update($, totals, () => next)
 }
@@ -496,6 +579,8 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     hours: t.hours,
     rows: t.list,
     sessions: t.sessions,
+    machines: t.machines ?? [],
+    countBoth: p.count !== 'this',
     badges: badgesOf(t, best),
     days: t.days,
     minutes,
@@ -587,6 +672,51 @@ export const register: Register = on => {
       if (key === 'pane' && now) await $.ui.open({ id: PANE, title: 'Lines written' })
 
       return { text: `${key}: ${now ? 'on' : 'off'}` }
+    }
+
+    if (what === 'count') {
+      if (value !== 'both' && value !== 'this') return { text: 'count: both (every Mac) or this (this Mac only)' }
+      await set({ count: value })
+      await syncTotals($, await $.clock.now())
+
+      return { text: `count: ${value}` }
+    }
+
+    if (what === 'sync') {
+      const rest = e.args.trim().replace(/^\S+\s*/, '')
+      const home = (await $.env.get('HOME')) ?? ''
+      if (!rest) {
+        const dir = await peerFolder($)
+
+        return { text: dir ? `sync folder: ${dir}` : 'sync folder: none (each Mac counts alone). Set one with /linecount sync <folder>, clear it with /linecount sync off.' }
+      }
+      if (rest === 'off') {
+        await set({ syncDir: '' })
+        peerCache.clear()
+        lastPublished = { at: 0, json: '' }
+        await syncTotals($, await $.clock.now())
+
+        return { text: 'sync folder: none. This Mac counts alone; its file in the old folder is left there.' }
+      }
+      const dir = expandDir(rest, home)
+      if (!dir.startsWith('/') || !(await $.fs.exists(dir))) return { text: `sync: ${dir} is not an existing folder. Make it first (in a folder your sync tool covers), then run this again.` }
+      await set({ syncDir: dir })
+      peerCache.clear()
+      lastPublished = { at: 0, json: '' }
+      await syncTotals($, await $.clock.now())
+
+      return { text: `sync folder: ${dir}. Run the same command on every Mac, with the folder that Mac's sync tool shares.` }
+    }
+
+    if (what === 'computers') {
+      const dir = await peerFolder($)
+      if (!dir) return { text: 'Computers: no sync folder set, so each Mac counts alone. Use /linecount sync <folder>.' }
+      const me = await whoAmI($)
+      const t = await read($, totals)
+      if (!me) return { text: 'Computers: this build cannot run commands here, so the two-Mac count is off.' }
+      const list = t.machines.length ? t.machines.map(m => `${m.name}${m.mine ? ' (this one)' : ''}: ${m.today} today, ${m.life} all time`).join('; ') : 'no other Mac has left a file yet'
+
+      return { text: `This Mac: ${me.name} (${me.id}). Folder: ${dir}. ${list}.` }
     }
 
     if (what === 'style') {

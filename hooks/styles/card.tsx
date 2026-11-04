@@ -45,9 +45,18 @@ export const card: Design = {
     if (side) {
       const rows = rowsOf(v)
       inner += dots(w - 16 - rows.length * 11 + 7, 17, rows)
-      inner += text(w - 16, 35, `${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}`, { cls: 'mu', size: 12, anchor: 'end' })
-      inner += text(w - 16, 51, `${fmt(v.session.code)} this session`, { cls: 'mu', size: 12, anchor: 'end' })
-      inner += text(w - 16, 66, `${fmt(v.life.code)} all time`, { cls: 'mu', size: 12, anchor: 'end' })
+      if (v.machines.length > 1) {
+        // One colored line per Mac (lines today), then the all-time number for what is counted.
+        v.machines.slice(0, 2).forEach((m, i) => {
+          const label = `${m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name} ${fmt(m.today)}`
+          inner += text(w - 16, 35 + i * 16, label, { cls: ['cl', 'bl', 'sa', 'fl'][m.slot % 4], size: 12, anchor: 'end', bold: true })
+        })
+        inner += text(w - 16, 66, `${fmt(v.life.code)} all time${v.countBoth ? ', both' : ''}`, { cls: 'mu', size: 12, anchor: 'end' })
+      } else {
+        inner += text(w - 16, 35, `${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}`, { cls: 'mu', size: 12, anchor: 'end' })
+        inner += text(w - 16, 51, `${fmt(v.session.code)} this session`, { cls: 'mu', size: 12, anchor: 'end' })
+        inner += text(w - 16, 66, `${fmt(v.life.code)} all time`, { cls: 'mu', size: 12, anchor: 'end' })
+      }
     }
 
     return bandWithStage(k, v, w, H, inner, stageAt(v, tx, STAGE_Y, sw))

@@ -134,8 +134,22 @@ Most of these are also buttons and pickers at the bottom of the pane (behind a S
 - Only Claude's Write and Edit actions are counted; code made by shell commands is not.
 - Comments are told apart by file type, which is a good guess rather than a perfect one.
 - Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on; older lines show as "earlier". A subagent's lines count under its chat's model.
-- Totals live on each computer (Claude Code's plugin store); two Macs keep separate counts.
+- Totals live on each computer (Claude Code's plugin store). Counting across several computers is optional: see Two or more computers.
 - Every number stays on your computer. Nothing is sent anywhere, and no model is asked anything.
+
+## Two or more computers (optional)
+
+By default each computer counts alone. To see each computer and a combined count, point every computer at one folder that something already syncs between them (Syncthing, iCloud Drive, Dropbox, OneDrive or a network share all work):
+
+1. Make a folder inside a synced location, for example `~/Sync/lines-tracker` (with Syncthing: a folder inside one you already share, or a new shared folder).
+2. On each computer run `/linecount sync ~/Sync/lines-tracker`, using the path that computer sees. The folder must exist, and it may sit at a different path on each computer.
+3. Run `/linecount computers` to check. After the other computer has run it too, each shows up with its own color and the totals add up.
+
+How it works: each computer writes only its own small file there (`totals-<computer name>.json`, line counts and the computer's model name, such as "MacBook Pro"; no file names or code) and reads the others. A computer never edits another's file, so the sync tool has nothing to conflict over. A computer that is off keeps its last numbers, shown with "last seen". Nothing is sent over the network by the mod itself; your sync tool moves the files.
+
+- `/linecount count this` shows only this computer's numbers (the others are still listed); `/linecount count both` adds them up (the default once a folder is set).
+- `/linecount sync off` stops writing and reading; `/linecount sync` shows the folder in use.
+- Needs a Mac (the computer's name and model come from macOS commands). If a computer cannot run them, it counts alone.
 
 ## For developers
 

@@ -1,5 +1,5 @@
 // The numbers behind every design: plain functions, no drawing. A design only draws a View.
-import type { Counts, Prefs, Row, Totals } from '../types'
+import type { Counts, Machine, Prefs, Row, Totals } from '../types'
 import { OUTFITS } from './clawd'
 import type { Outfit } from './clawd'
 
@@ -13,6 +13,7 @@ export const SECTIONS = [
   { id: 'header', label: 'Level' },
   { id: 'numbers', label: 'Details', off: true },
   { id: 'rings', label: 'Rings' },
+  { id: 'computers', label: 'Computers' },
   { id: 'heat', label: 'Heat map' },
   { id: 'sessions', label: 'Sessions' },
   { id: 'languages', label: 'Languages' },
@@ -41,6 +42,8 @@ export const defaultPrefs = (): Prefs => ({
   style: 'auto',
   outfit: 'auto',
   bg: 'none',
+  count: 'both',
+  syncDir: '',
   lookOpen: false,
   sections: Object.fromEntries(SECTIONS.map(s => [s.id, !('off' in s)])),
 })
@@ -205,6 +208,9 @@ export type View = {
   hours: number[]
   rows: Row[]
   sessions: number
+  /** Every Mac known (this one first); empty with one Mac. The numbers above include them when countBoth. */
+  machines: Machine[]
+  countBoth: boolean
   badges: Badge[]
   days: Record<string, Counts>
   minutes: number
