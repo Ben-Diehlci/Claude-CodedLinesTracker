@@ -174,10 +174,10 @@ test('auto picks card, or compact when the band is narrow', async ($, on) => {
   await $.tool.call(WRITE)
 
   const wide = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
-  expect((await bandSvg(wide))?.props.source).toMatch(/^<svg[^>]* height="74"/)
+  expect((await bandSvg(wide))?.props.height).toBe(74)
   await wide.unmount()
   const narrow = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 50 }, surface: 'desktop' } as any)
-  expect((await bandSvg(narrow))?.props.source).toMatch(/^<svg[^>]* height="30"/)
+  expect((await bandSvg(narrow))?.props.height).toBe(30)
   await narrow.unmount()
 })
 
