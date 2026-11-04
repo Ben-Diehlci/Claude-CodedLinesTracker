@@ -2,7 +2,7 @@
 import { MILESTONE, fmt } from '../model'
 import type { View } from '../model'
 import { canvasH, clawdBody, W } from '../clawd'
-import { svgDoc } from '../draw'
+import { est, svgDoc, text } from '../draw'
 import { STAGE_H, stageSvg } from '../stage'
 
 /** What a design needs besides the View: the host's elements, and Clawd for the terminal. */
@@ -29,6 +29,29 @@ export const CLAY = '#D97757'
 export const SAND = '#E3C79A'
 export const FLASH = '#7FB069'
 export const GOLD = '#E8B84A'
+
+/** A Mac's color by its slot (the same on every Mac): Svg classes, and hex for the terminal. */
+export const MACHINE_CLS = ['cl', 'bl', 'sa', 'fl']
+export const MACHINE_COLOR = [CLAY, '#7A8CE0', SAND, FLASH]
+
+/** "Mac Studio 195": the Mac's name (cut to 16) and its lines today. */
+export const machineLabel = (m: View['machines'][number]): string => `${m.name.length > 16 ? m.name.slice(0, 15) + '…' : m.name} ${fmt(m.today)}`
+
+/** Desktop: "● Mac Studio 195  ● MacBook Pro 157" in each Mac's color, starting at (x, y). Returns the markup and where it ends. */
+export const machinesSvg = (v: View, x: number, y: number, size = 12): { o: string; end: number } => {
+  let o = ''
+  for (const m of v.machines) {
+    const label = `● ${machineLabel(m)}`
+    o += text(x, y, label, { cls: MACHINE_CLS[m.slot % 4], size, bold: true })
+    x += est(label, size, true) + 12
+  }
+
+  return { o, end: x - 12 }
+}
+
+/** Terminal: the same line as Text runs (put inside a Text). */
+export const machinesTerm = (v: View, Text: any) =>
+  v.machines.map(m => <Text color={MACHINE_COLOR[m.slot % 4]} bold>{` ● ${machineLabel(m)}`}</Text>)
 
 /**
  * Width of a desktop band Svg from the band's columns (bodyColumns already leaves out the [-] mark).

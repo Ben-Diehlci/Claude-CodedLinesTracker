@@ -2,7 +2,7 @@
 import { fmt } from '../model'
 import type { View } from '../model'
 import { confetti, dots, est, rect, text } from '../draw'
-import { CLAY, FLASH, SAND, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt } from './common'
+import { CLAY, FLASH, MACHINE_CLS, SAND, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, machinesTerm, mileLabel, stageAt } from './common'
 import type { Design } from './common'
 
 const PX = 4
@@ -49,7 +49,7 @@ export const card: Design = {
         // One colored line per Mac (lines today), then the all-time number for what is counted.
         v.machines.slice(0, 2).forEach((m, i) => {
           const label = `${m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name} ${fmt(m.today)}`
-          inner += text(w - 16, 35 + i * 16, label, { cls: ['cl', 'bl', 'sa', 'fl'][m.slot % 4], size: 12, anchor: 'end', bold: true })
+          inner += text(w - 16, 35 + i * 16, label, { cls: MACHINE_CLS[m.slot % 4], size: 12, anchor: 'end', bold: true })
         })
         inner += text(w - 16, 66, `${fmt(v.life.code)} all time${v.countBoth ? ', both' : ''}`, { cls: 'mu', size: 12, anchor: 'end' })
       } else {
@@ -84,12 +84,18 @@ export const card: Design = {
         <Box>
           {stage}
           <Text>
-            <Text bold>{` ${fmt(v.session.code)}`}</Text>
-            <Text dimColor>{' this session  '}</Text>
-            {rows.map(r => (
-              <Text color={r.active ? CLAY : undefined} dimColor={!r.active}>{r.hot ? '◉' : '●'}</Text>
-            ))}
-            <Text dimColor>{` ${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}  `}</Text>
+            {v.machines.length > 1 ? (
+              <Text>{machinesTerm(v, Text)}{'  '}</Text>
+            ) : (
+              <Text>
+                <Text bold>{` ${fmt(v.session.code)}`}</Text>
+                <Text dimColor>{' this session  '}</Text>
+                {rows.map(r => (
+                  <Text color={r.active ? CLAY : undefined} dimColor={!r.active}>{r.hot ? '◉' : '●'}</Text>
+                ))}
+                <Text dimColor>{` ${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}  `}</Text>
+              </Text>
+            )}
             <Text bold>{fmt(v.life.code)}</Text>
             <Text dimColor> all time</Text>
           </Text>

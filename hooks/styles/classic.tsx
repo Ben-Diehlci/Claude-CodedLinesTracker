@@ -4,7 +4,7 @@ import { fmt } from '../model'
 import type { View } from '../model'
 import { confetti, est, text } from '../draw'
 import { STAGE_H } from '../stage'
-import { CLAY, FLASH, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt } from './common'
+import { CLAY, FLASH, MACHINE_CLS, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, machineLabel, machinesTerm, mileLabel, stageAt } from './common'
 import type { Design, Kit } from './common'
 
 const PX = 4
@@ -49,7 +49,7 @@ const body = (v: View, k: Kit, mascotEl: any) => {
         <Text bold>{fmt(v.today.code)}</Text>
         <Text dimColor>  all time </Text>
         <Text bold>{fmt(v.life.code)}</Text>
-        {multi ? <Text dimColor>{`  ${v.sessions} sessions active`}</Text> : <Text> </Text>}
+        {v.machines.length > 1 ? <Text>{'  '}{machinesTerm(v, Text)}</Text> : multi ? <Text dimColor>{`  ${v.sessions} sessions active`}</Text> : <Text> </Text>}
       </Text>
     </Box>
   )
@@ -91,7 +91,11 @@ export const classic: Design = {
       [fmt(v.today.code), 'fg', true],
       ['  all time ', 'mu', false],
       [fmt(v.life.code), 'fg', true],
-      ...(multi ? ([[`  ${v.sessions} sessions active`, 'mu', false]] as [string, string, boolean][]) : []),
+      ...(v.machines.length > 1
+        ? (v.machines.map(m => [`  ● ${machineLabel(m)}`, MACHINE_CLS[m.slot % 4], true]) as [string, string, boolean][])
+        : multi
+          ? ([[`  ${v.sessions} sessions active`, 'mu', false]] as [string, string, boolean][])
+          : []),
     ])
     inner += a.o + b.o
     const sx = Math.max(a.end, b.end) + 16

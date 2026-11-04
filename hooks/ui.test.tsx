@@ -576,3 +576,40 @@ test('arcade and compact fill a wide band with the stage, and spread out or leav
   expect(await src(120)).toMatch(/scale\(0\.7\)/)
   expect(await src(40)).not.toMatch(/#stg/)
 })
+
+test('with a second Mac in the synced folder, every design lists each Mac, and the pane gets a Computers section', async ($, on) => {
+  stubs(on)
+  memory(on, { prefs: { status: true, pane: true, mascot: true, syncDir: '/sync', count: 'both' } })
+  mock.clock(on, { now: T0 })
+  const day = new Date(T0)
+  const d = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  const peer = { v: 1, id: 'studio', name: 'Mac Studio', at: T0, d, today: c(860), life: c(30000), days: { [d]: c(860) }, hours: Array(24).fill(0), modelsToday: {}, modelsLife: {} }
+  on('env.get', () => ({ value: '/Users/me' }))
+  on('process.run', (_: any, e: any) => ({ value: { exitCode: 0, stdout: e.argv[0] === 'scutil' ? 'laptop\n' : '      Model Name: MacBook Pro\n', stderr: '' } }))
+  on('fs.list', () => ({ value: [{ name: 'totals-studio.json', kind: 'file', size: 1, mtimeMs: 1, isLink: false }] }))
+  on('fs.read', () => ({ value: JSON.stringify(peer) }))
+  on('fs.write', () => ({ value: undefined }))
+
+  await $.session.start({ cwd: '/work/proj', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+
+  for (const id of ['classic', 'card', 'arcade', 'compact']) {
+    await $.command.run({ command: 'linecount', args: `style ${id}` })
+
+    const term = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+    expect(await term.find({ type: 'Text', text: /Mac Studio 860/ }), `${id} terminal`).toBeTruthy()
+    await term.unmount()
+
+    const desk = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 160 }, surface: 'desktop' } as any)
+    const src = (await bandSvg(desk))?.props.source as string
+    expect(src, `${id} desktop`).toMatch(/Mac Studio 860/)
+    expect(src, `${id} desktop`).toMatch(/MacBook Pro/)
+    expect(src.length).toBeLessThan(131_072)
+    await desk.unmount()
+  }
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await svgAlt(pane, /^Computers: MacBook Pro/)).toMatch(/Mac Studio 860 today, 30,000 all time/)
+  await pane.unmount()
+})

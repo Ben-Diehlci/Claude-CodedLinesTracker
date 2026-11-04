@@ -2,7 +2,7 @@
 // Clawd's stage on a little arcade screen in the room that is left.
 import { fmt } from '../model'
 import { confetti, est, flame, goalBar, pix, pixWidth, rect, segments, text } from '../draw'
-import { CLAY, FLASH, GOLD, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt } from './common'
+import { CLAY, FLASH, GOLD, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, machineLabel, machinesTerm, mileLabel, stageAt, MACHINE_CLS } from './common'
 import type { Design } from './common'
 
 const PX = 4
@@ -33,6 +33,15 @@ export const arcade: Design = {
     })
     blocks.push(number('SESSION LINES', fmt(v.session.code), 'cl'))
     blocks.push(number('LINES TODAY', fmt(v.today.code), 'sa'))
+    if (v.machines.length > 1) {
+      // One colored line per Mac under the tag.
+      blocks.push({
+        width: Math.max(est('TODAY BY MAC', 10, true) + 15, ...v.machines.map(m => est(`● ${machineLabel(m)}`, 12, true))) + 22,
+        draw: bx =>
+          tag(bx, 'TODAY BY MAC') +
+          v.machines.slice(0, 2).map((m, i) => text(bx, 35 + i * 15, `● ${machineLabel(m)}`, { cls: MACHINE_CLS[m.slot % 4], size: 12, bold: true })).join(''),
+      })
+    }
     blocks.push(number('HI-SCORE DAY', fmt(hi), beating ? 'fl' : 'go'))
     const lv = `LV ${v.level} - NEXT AT ${fmt(v.nextAt)}`
     blocks.push({
@@ -101,6 +110,7 @@ export const arcade: Design = {
           <Text color={GOLD}>▲ </Text>
           <Text bold>{v.streak}</Text>
           <Text dimColor>{v.streak === 1 ? ' day streak' : ' day streak'}</Text>
+          {v.machines.length > 1 ? <Text>{'  '}{machinesTerm(v, Text)}</Text> : null}
         </Text>
       </Box>
     )

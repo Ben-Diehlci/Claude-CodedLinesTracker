@@ -2,7 +2,7 @@
 // Picked by "auto" when the band is narrow.
 import { fmt } from '../model'
 import { confetti, est, hoursChart, hoursText, text, rect } from '../draw'
-import { CLAY, FLASH, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt, stageHeight } from './common'
+import { CLAY, FLASH, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, machinesSvg, machinesTerm, mileLabel, stageAt, stageHeight } from './common'
 import type { Design } from './common'
 
 const PX = 2
@@ -32,6 +32,13 @@ export const compact: Design = {
     const g = `${fmt(v.today.code)} today`
     inner += text(x, 19, g, { cls: 'mu', size: 12 })
     x += est(g, 12) + 14
+    if (v.machines.length > 1) {
+      const ms = machinesSvg(v, x, 19)
+      if (ms.end < w - 8 - 60) {
+        inner += ms.o
+        x = ms.end + 14
+      }
+    }
     if (x + 24 * 5 < w - 8) {
       inner += hoursChart(x, 6, v.hours, 4, 16, new Date(v.now).getHours())
       x += 24 * 5 + 6
@@ -65,6 +72,7 @@ export const compact: Design = {
           <Text bold>{fmt(v.today.code)}</Text>
           <Text dimColor>{' today  '}</Text>
           <Text color={SAND}>{hoursText(v.hours)}</Text>
+          {v.machines.length > 1 ? <Text>{machinesTerm(v, Text)}</Text> : null}
           {v.mile ? <Text color={FLASH} bold>{`  ✦ ${mileLabel(v)}`}</Text> : v.flash > 0 ? <Text color={FLASH} bold>{`  +${fmt(v.flash)}`}</Text> : <Text> </Text>}
         </Text>
       </Box>
