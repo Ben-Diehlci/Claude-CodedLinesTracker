@@ -668,8 +668,8 @@ export const register: Register = on => {
     const terminal = e.surface === 'terminal'
     mounted.band = p.mascot && terminal && design.id !== 'compact'
     mounted.stage = false
-    // Every desktop design but classic can show the stage's scenes.
-    mounted.scene = !terminal && design.id !== 'classic'
+    // Every desktop design can show the stage's scenes.
+    mounted.scene = !terminal
     if (terminal) {
       bandId = (e as { requestId?: string }).requestId ?? 'band'
       lastCells = ''

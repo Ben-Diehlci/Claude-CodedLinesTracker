@@ -160,8 +160,7 @@ test('every design draws on the terminal and the desktop', async ($, on) => {
     await term.unmount()
 
     const desk = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
-    if (id === 'classic') expect(await desk.find({ type: 'Text', text: /LINES/ })).toBeTruthy()
-    else expect((await bandSvg(desk))?.props.source).toMatch(/<svg[^>]*>.*<\/svg>/s)
+    expect((await bandSvg(desk))?.props.source).toMatch(/<svg[^>]*>.*<\/svg>/s)
     await desk.unmount()
   }
 })
@@ -464,9 +463,10 @@ test('totals add up every session; the band shows the others live', async ($, on
   expect((m.get('s-me') as any).life.code).toBe(2)
 
   const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
-  expect((await band.find({ type: 'Text', text: /sessions active/ }))?.text).toMatch(/2 sessions active/)
-  expect((await band.find({ type: 'Text', text: /all sessions today/ }))?.text).toMatch(/102/)
-  expect((await band.find({ type: 'Text', text: /all time/ }))?.text).toMatch(/1,502/)
+  const src = (await bandSvg(band))?.props.source as string
+  expect(src).toMatch(/>2 sessions active</)
+  expect(src).toMatch(/>all sessions today<\/text><text[^>]*>102</)
+  expect(src).toMatch(/>all time<\/text><text[^>]*>1,502</)
   await band.unmount()
 
   // The card band leads with today's lines (every session) and puts this session's at the side.
@@ -541,7 +541,7 @@ test('the desktop band stays under the app\'s 128 KB Svg limit with every outfit
   const clock = mock.clock(on, { now: T0 })
   await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
   await $.tool.call({ tool: 'Write', file_path: '/a/big.ts', content: Array.from({ length: 1100 }, (_, i) => `const v${i} = ${i}`).join('\n') })
-  for (const style of ['card', 'arcade', 'compact']) {
+  for (const style of ['card', 'arcade', 'compact', 'classic']) {
     await $.command.run({ command: 'linecount', args: `style ${style}` })
     for (const outfit of ['crown', 'tophat', 'viking', 'headphones']) {
       await $.command.run({ command: 'linecount', args: `outfit ${outfit}` })
