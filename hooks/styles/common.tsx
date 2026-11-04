@@ -29,8 +29,13 @@ export const SAND = '#E3C79A'
 export const FLASH = '#7FB069'
 export const GOLD = '#E8B84A'
 
-/** Width of a desktop band Svg: the column less room for the host's [-] collapse mark. */
-export const bandWidth = (v: View): number => Math.max(300, Math.min(1200, v.cols * 8 - 96))
+/**
+ * Width of a desktop band Svg from the band's columns (bodyColumns already leaves out the [-] mark).
+ * The desktop's columns measured about 9 px (Ben's screenshot, 2026-11-03: at 8 px the band filled only
+ * two thirds of its slot). Better a little too wide than too narrow: the Svg carries no fixed size, so
+ * the app scales a wider drawing down to fit its slot instead of cutting it off.
+ */
+export const bandWidth = (v: View): number => Math.max(300, Math.min(1400, v.cols * 9 - 12))
 
 export const mileLabel = (v: View): string => `${fmt(Math.floor(v.life.code / MILESTONE) * MILESTONE)} lines!`
 
@@ -49,5 +54,6 @@ export const clawdHeight = (v: View, px: number): number => canvasH(v.outfit) * 
 export const bandSvg = (k: Kit, v: View, w: number, ht: number, inner: string) => {
   const { Svg } = k.ui
 
-  return <Svg key="band" alt={summary(v)} isInteractive width={w} height={ht} source={svgDoc(w, ht, inner)} />
+  // No width or height props: the box takes the markup's own size, shrunk to the slot when wider.
+  return <Svg key="band" alt={summary(v)} isInteractive source={svgDoc(w, ht, inner)} />
 }

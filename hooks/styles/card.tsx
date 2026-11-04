@@ -44,7 +44,7 @@ export const card: Design = {
     }
 
     const side = w - tx > 420
-    const sw = Math.max(160, Math.min(640, w - tx - (side ? 170 : 14)))
+    const sw = Math.max(160, Math.min(900, w - tx - (side ? 170 : 14)))
     if (side) {
       const rows = rowsOf(v)
       inner += dots(w - 16 - rows.length * 11 + 7, 17, rows)
