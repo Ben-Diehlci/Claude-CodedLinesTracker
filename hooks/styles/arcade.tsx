@@ -1,12 +1,16 @@
-// B: an arcade scoreboard - pixel-font numbers, hi-score day, level with XP segments, streak flame.
+// B: an arcade scoreboard - pixel-font numbers, hi-score day, level with XP segments, streak flame, and
+// Clawd's stage on a little arcade screen in the room that is left.
 import { fmt } from '../model'
 import { confetti, est, flame, goalBar, pix, pixWidth, rect, segments, text } from '../draw'
-import { CLAY, FLASH, GOLD, SAND, bandSvg, bandWidth, clawdAt, clawdHeight, clawdWidth, mileLabel } from './common'
+import { CLAY, FLASH, GOLD, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt } from './common'
 import type { Design } from './common'
 
 const PX = 4
 const H = 68
 const P = 3
+/** The screen needs at least this much room; less, and the blocks spread out instead. */
+const SCREEN_MIN = 160
+const SCREEN_Y = 27
 
 export const arcade: Design = {
   id: 'arcade',
@@ -39,15 +43,36 @@ export const arcade: Design = {
       width: 100,
       draw: bx => tag(bx, 'STREAK') + flame(bx, 28) + text(bx + 22, 44, String(v.streak), { cls: 'fg', size: 16, bold: true }) + text(bx + 22 + est(String(v.streak), 16, true) + 4, 44, v.streak === 1 ? 'day' : 'days', { cls: 'mu', size: 12 }),
     })
+    const shown: typeof blocks = []
+    let used = x
     for (const b of blocks) {
-      if (x + b.width > w - 8) break
-      inner += b.draw(x)
-      x += b.width
+      if (used + b.width > w - 8) break
+      shown.push(b)
+      used += b.width
     }
-    if (v.mile) inner += text(w - 14, 58, `✦ ${mileLabel(v)}`, { cls: 'fl', size: 12, bold: true, anchor: 'end' })
-    else if (v.flash > 0) inner += text(w - 14, 58, `+${fmt(v.flash)}`, { cls: 'fl', size: 12, bold: true, anchor: 'end' })
+    const room = w - 8 - used
+    const screen = room >= SCREEN_MIN
+    // No screen: share the spare room out between the blocks so they fill the band.
+    const gap = screen || shown.length < 2 ? 0 : room / (shown.length - 1)
+    for (const b of shown) {
+      inner += b.draw(x)
+      x += b.width + gap
+    }
+    const chip = v.mile ? `✦ ${mileLabel(v)}` : v.flash > 0 ? `+${fmt(v.flash)}` : ''
+    if (!screen) {
+      if (chip) inner += text(w - 14, 58, chip, { cls: 'fl', size: 12, bold: true, anchor: 'end' })
 
-    return bandSvg(k, v, w, H, inner)
+      return bandSvg(k, v, w, H, inner)
+    }
+
+    // The arcade screen: "1UP" blinks over it like a waiting cabinet, the chip sits at the label's end.
+    const sx = x + 4
+    const sw = Math.min(900, w - 12 - sx)
+    inner += `<g>${text(sx, 20, '1UP', { cls: 'cl', size: 10, bold: true, spacing: 1.2 })}<animate attributeName="opacity" values="1;1;.2;.2" keyTimes="0;.5;.5;1" dur="1.2s" repeatCount="indefinite"/></g>`
+    inner += tag(sx + 34, v.working ? 'NOW PLAYING' : 'INSERT COIN')
+    if (chip) inner += text(sx + sw, 20, chip, { cls: 'fl', size: 12, bold: true, anchor: 'end' })
+
+    return bandWithStage(k, v, w, H, inner, stageAt(v, sx, SCREEN_Y, sw))
   },
   terminal: (v, k) => {
     const { Box, Text } = k.ui

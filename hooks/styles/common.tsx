@@ -3,6 +3,7 @@ import { MILESTONE, fmt } from '../model'
 import type { View } from '../model'
 import { canvasH, clawdBody, W } from '../clawd'
 import { svgDoc } from '../draw'
+import { STAGE_H, stageSvg } from '../stage'
 
 /** What a design needs besides the View: the host's elements, and Clawd for the terminal. */
 export type Kit = {
@@ -55,4 +56,24 @@ export const bandSvg = (k: Kit, v: View, w: number, ht: number, inner: string) =
   const { Svg } = k.ui
 
   return <Svg key="band" alt={summary(v)} isInteractive width={w} height={ht} source={svgDoc(w, ht, inner)} />
+}
+
+/** Leaves room under the app's 128 KB limit for an Svg's source. */
+const BAND_MAX = 120_000
+
+/** Clawd's stage, sw wide, at (x, y) and scaled by `scale`. */
+export const stageAt = (v: View, x: number, y: number, sw: number, scale = 1) => (scenes: boolean): string =>
+  `<g transform="translate(${x},${y})${scale === 1 ? '' : ` scale(${scale})`}">${stageSvg(v, sw, scenes)}</g>`
+
+/** Stage height in the band at a scale. */
+export const stageHeight = (scale = 1): number => STAGE_H * scale
+
+/**
+ * A band with Clawd's stage in it. The app refuses an Svg over 128 KB: should the stage's scene push the
+ * band past that, the stage drops the scene (the pile and belt stay).
+ */
+export const bandWithStage = (k: Kit, v: View, w: number, ht: number, inner: string, stage: (scenes: boolean) => string) => {
+  const full = inner + stage(true)
+
+  return bandSvg(k, v, w, ht, svgDoc(w, ht, full).length < BAND_MAX ? full : inner + stage(false))
 }

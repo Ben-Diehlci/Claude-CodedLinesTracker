@@ -541,13 +541,38 @@ test('the desktop band stays under the app\'s 128 KB Svg limit with every outfit
   const clock = mock.clock(on, { now: T0 })
   await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
   await $.tool.call({ tool: 'Write', file_path: '/a/big.ts', content: Array.from({ length: 1100 }, (_, i) => `const v${i} = ${i}`).join('\n') })
-  for (const outfit of ['crown', 'tophat', 'viking', 'headphones']) {
-    await $.command.run({ command: 'linecount', args: `outfit ${outfit}` })
-    for (let k = 0; k < 12; k++) {
-      const band = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 160 }, surface: 'desktop' } as any)
-      expect(((await bandSvg(band))?.props.source as string).length).toBeLessThan(131_072)
-      await band.unmount()
-      await clock.advance(30_000)
+  for (const style of ['card', 'arcade', 'compact']) {
+    await $.command.run({ command: 'linecount', args: `style ${style}` })
+    for (const outfit of ['crown', 'tophat', 'viking', 'headphones']) {
+      await $.command.run({ command: 'linecount', args: `outfit ${outfit}` })
+      for (let k = 0; k < 12; k++) {
+        const band = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 160 }, surface: 'desktop' } as any)
+        expect(((await bandSvg(band))?.props.source as string).length).toBeLessThan(131_072)
+        await band.unmount()
+        await clock.advance(30_000)
+      }
     }
   }
+})
+
+test('arcade and compact fill a wide band with the stage, and spread out or leave it out when narrow', async ($, on) => {
+  stubs(on)
+  memory(on)
+  mock.clock(on, { now: T0 })
+  await $.session.start({ cwd: '/x', surface: 'desktop', isInteractive: true })
+  await $.tool.call(WRITE)
+  const src = async (cols: number) => {
+    const band = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: cols }, surface: 'desktop' } as any)
+    const s = (await bandSvg(band))?.props.source as string
+    await band.unmount()
+
+    return s
+  }
+  await $.command.run({ command: 'linecount', args: 'style arcade' })
+  expect(await src(120)).toMatch(/clip-path="url\(#stg\)"/)
+  expect(await src(120)).toMatch(/1UP/)
+  expect(await src(60)).not.toMatch(/#stg/)
+  await $.command.run({ command: 'linecount', args: 'style compact' })
+  expect(await src(120)).toMatch(/scale\(0\.7\)/)
+  expect(await src(40)).not.toMatch(/#stg/)
 })

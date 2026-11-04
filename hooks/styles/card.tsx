@@ -1,9 +1,8 @@
 // A: a hairline rounded card, big numbers, Clawd's stage (things happen while you work), session dots.
 import { fmt } from '../model'
 import type { View } from '../model'
-import { confetti, dots, est, rect, svgDoc, text } from '../draw'
-import { stageSvg } from '../stage'
-import { CLAY, FLASH, SAND, bandSvg, bandWidth, clawdAt, clawdHeight, clawdWidth, mileLabel } from './common'
+import { confetti, dots, est, rect, text } from '../draw'
+import { CLAY, FLASH, SAND, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt } from './common'
 import type { Design } from './common'
 
 const PX = 4
@@ -11,8 +10,6 @@ const H = 74
 const STAGE_Y = 33
 /** Cells the terminal stage gets. */
 const STAGE_COLS = 30
-/** Leaves room under the app's 128 KB limit for an Svg's source. */
-const BAND_MAX = 120_000
 
 const rowsOf = (v: View) => (v.rows.length ? v.rows : [{ active: true, hot: false }])
 
@@ -53,11 +50,7 @@ export const card: Design = {
       inner += text(w - 16, 66, `${fmt(v.life.code)} all time`, { cls: 'mu', size: 12, anchor: 'end' })
     }
 
-    // The app refuses an Svg over 128 KB: should the scene push the band past that, the stage drops it.
-    const stage = (scenes: boolean) => `<g transform="translate(${tx},${STAGE_Y})">${stageSvg(v, sw, scenes)}</g>`
-    const full = inner + stage(true)
-
-    return bandSvg(k, v, w, H, svgDoc(w, H, full).length < BAND_MAX ? full : inner + stage(false))
+    return bandWithStage(k, v, w, H, inner, stageAt(v, tx, STAGE_Y, sw))
   },
   terminal: (v, k) => {
     const { Box, Text } = k.ui

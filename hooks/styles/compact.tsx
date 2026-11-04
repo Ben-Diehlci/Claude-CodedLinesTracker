@@ -1,11 +1,16 @@
-// C: one line - today's lines and a 24-hour mini chart. Picked by "auto" when the band is narrow.
+// C: one line - today's lines, a 24-hour mini chart and, with room left, a small Clawd's stage.
+// Picked by "auto" when the band is narrow.
 import { fmt } from '../model'
 import { confetti, est, hoursChart, hoursText, text, rect } from '../draw'
-import { CLAY, FLASH, SAND, bandSvg, bandWidth, clawdAt, clawdHeight, clawdWidth, mileLabel } from './common'
+import { CLAY, FLASH, SAND, bandSvg, bandWidth, bandWithStage, clawdAt, clawdHeight, clawdWidth, mileLabel, stageAt, stageHeight } from './common'
 import type { Design } from './common'
 
 const PX = 2
 const H = 30
+/** The stage shrunk to fit the one-line band. */
+const SCALE = 0.7
+/** Below this much room (in band pixels) the stage is left out. */
+const STAGE_MIN = 110
 
 export const compact: Design = {
   id: 'compact',
@@ -39,9 +44,13 @@ export const compact: Design = {
     if (chip && x + 40 < w) {
       const pw = est(chip, 12, true) + 14
       inner += rect(x, 5, pw, 20, 'fl', 10, 'fill-opacity=".18"') + text(x + pw / 2, 19, chip, { cls: 'fl', size: 12, bold: true, anchor: 'middle' })
+      x += pw + 10
     }
+    // The room left goes to Clawd's stage, shrunk to the band's height.
+    const room = Math.min(900, w - 8 - x)
+    if (room < STAGE_MIN) return bandSvg(k, v, w, H, inner)
 
-    return bandSvg(k, v, w, H, inner)
+    return bandWithStage(k, v, w, H, inner, stageAt(v, x, (H - stageHeight(SCALE)) / 2, room / SCALE, SCALE))
   },
   terminal: (v, k) => {
     const { Box, Text } = k.ui
