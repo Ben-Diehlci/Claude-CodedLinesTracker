@@ -16,11 +16,13 @@ test('dump', async ($, on) => {
   await $.tool.call({ tool: 'Write', file_path: '/a/y.ts', content: Array.from({ length: 120 }, (_, i) => `const v${i} = ${i}`).join('\n') })
   await $.tool.call({ tool: 'Write', file_path: '/a/z.md', content: Array.from({ length: 50 }, (_, i) => `line ${i}`).join('\n') })
   await clock.advance(5000)
-  for (const id of ['classic', 'card', 'arcade', 'compact']) {
-    await $.command.run({ command: 'linecount', args: `style ${id}` })
-    const b = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 120 }, surface: 'desktop' } as any)
-    console.log('@@band-' + id + '@@' + JSON.stringify(await b.drawn()) + '@@END@@')
-    await b.unmount()
+  for (const cols of [60, 90, 120, 160]) {
+    for (const id of ['classic', 'card', 'arcade', 'compact']) {
+      await $.command.run({ command: 'linecount', args: `style ${id}` })
+      const b = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: cols }, surface: 'desktop' } as any)
+      console.log('@@band-' + id + '-' + cols + 'col@@' + JSON.stringify(await b.drawn()) + '@@END@@')
+      await b.unmount()
+    }
   }
   await $.command.run({ command: 'linecount', args: 'section numbers on' })
   for (const [bg, cols] of [['none', 30], ['none', 36], ['none', 40], ['none', 48], ['night', 40], ['none', 60], ['none', 110]] as const) {
