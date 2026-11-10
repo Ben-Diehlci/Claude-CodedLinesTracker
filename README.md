@@ -65,7 +65,11 @@ Then, in any open Claude Code chat, type `/reload-plugins` (or start a new chat)
 
 You can do the same from inside Claude Code instead of a terminal: type `/plugin`, add the marketplace `Ben-Diehlci/Claude-CodedLinesTracker`, and install `lines-tracker` from it.
 
-To get a newer version later:
+#### Getting updates
+
+New versions come out as [releases](https://github.com/Ben-Diehlci/Claude-CodedLinesTracker/releases). To get them on their own: type `/plugin` in Claude Code, open **Marketplaces**, pick `claude-codedlinestracker` and turn on **auto-update**. Claude Code then checks when it starts and tells you when it installed a newer version (run `/reload-plugins` or start a new chat to use it).
+
+Or update by hand whenever you like:
 
 ```bash
 claude plugin marketplace update claude-codedlinestracker
@@ -157,5 +161,6 @@ How it works: each computer writes only its own small file there (`totals-<compu
 - Band designs: `hooks/styles/` (one file each). The desktop band is one SVG, which the app caps at 128 KB.
 - Clawd: `hooks/clawd.ts` (sprite, outfits, tricks). The stage: `hooks/stage.ts` and `hooks/scenes.ts`. The desktop pane: `hooks/panesvg.ts`; the terminal pane: `hooks/panes.tsx`.
 - Tests: `claude plugin test .`. Design mockups are in `design/`; `design/preview/preview.sh` draws every design into a page to compare, and `design/preview/export.sh` remakes the pictures in this README.
+- Releases: `scripts/release.sh 0.2.0` checks and tests the mod, writes the version into `.claude-plugin/plugin.json`, tags it `v0.2.0`, pushes, and makes a GitHub release listing the commits since the last one. Add `--dry-run` to only check. Claude Code offers an update only when that version number goes up, so pushing without a release reaches nobody else.
 
 License: see [LICENSE](LICENSE).
