@@ -1,6 +1,6 @@
 {
   "name": "lines-tracker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Counts the lines of code Claude writes (with and without comments, blank lines skipped) using no tokens.",
   "types": "./types/index.d.ts"
 }
