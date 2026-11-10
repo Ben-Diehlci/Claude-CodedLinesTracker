@@ -47,7 +47,7 @@ claude plugin test .
 
 LAST=$(git describe --tags --abbrev=0 2>/dev/null || true)
 echo "--- Changes since ${LAST:-the start}:"
-if [ -n "$LAST" ]; then git log --oneline "$LAST"..HEAD; else git log --oneline | head -20; fi
+if [ -n "$LAST" ]; then git log --oneline "$LAST"..HEAD; else git log --oneline -20; fi
 
 if [ "$DRY" = 1 ]; then
   echo "--- Dry run: nothing changed. Run again without --dry-run to release $TAG."
