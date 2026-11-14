@@ -14,6 +14,8 @@ import {
   newAnim,
 } from './clawd'
 import type { Outfit } from './clawd'
+import { BATCH, CLOUD_MODES, FIND_MS, SCAN_MS, cloudTotals, listArgs, parseLog, samePath, showArgs, skipDir } from './cloud'
+import type { CloudCommit } from './cloud'
 import { countLines, extOf } from './count'
 import { IDLE_MS, stageCells, stageLive } from './stage'
 import type { StageLive } from './stage'
@@ -75,7 +77,7 @@ const session = atom({ plugin: 'lines-tracker', key: 'session' } as const, fresh
 const prefs = atom(
   { plugin: 'lines-tracker', key: 'prefs' } as const,
   defaultPrefs(),
-  { shape: 'prefs-3' },
+  { shape: 'prefs-4' },
 )
 const noTotals = (): Totals => ({
   life: { ...EMPTY },
@@ -261,6 +263,7 @@ let lastCells = ''
 let ownCache: Own | undefined
 let beats = 0
 let project = 'session'
+let cwd = ''
 let curOutfit: Outfit = 'none'
 // band/pane: a terminal Raster Clawd to repaint; stage: the terminal stage Raster; scene: a desktop card band with the stage.
 const mounted: Record<'band' | 'pane' | 'stage' | 'scene', boolean> = { band: false, pane: false, stage: false, scene: false }
@@ -449,15 +452,162 @@ const publish = async ($: any, me: Machine, mine: Totals, now: number) => {
 
 const syncTotals = async ($: any, now: number) => {
   const mine = await sumSessions($, now)
-  const me = (await peerFolder($)) ? await whoAmI($) : null
+  const p = await read($, prefs)
+  const cloud = p.cloud !== 'off' ? ((await $.store.get(CLOUD_TOTALS)) as PeerFile | undefined) : undefined
+  const hasCloud = !!cloud && cloud.life.all > 0
+  const synced = !!(await peerFolder($))
+  const me = synced || hasCloud ? await whoAmI($) : null
   let next = mine
-  if (me) {
-    await publish($, me, mine, now).catch(() => {})
-    const mode = (await read($, prefs)).count
-    next = mergePeers(mine, me.id, me.name, await readPeers($), now, mode)
+  if (me || hasCloud) {
+    if (me && synced) await publish($, me, mine, now).catch(() => {})
+    const peers = me && synced ? await readPeers($) : []
+    const self = me ?? { id: 'this-computer', name: 'This computer' }
+    next = mergePeers(mine, self.id, self.name, hasCloud ? [...peers, cloud!] : peers, now, p.count)
   }
   const cur = await read($, totals)
   if (JSON.stringify(cur) !== JSON.stringify(next)) await update($, totals, () => next)
+}
+
+/* ---- cloud sessions: their lines, read from the git commits they made (cloud.ts) ---- */
+
+const CLOUD_COMMITS = 'cloud-commits'
+const CLOUD_STATE = 'cloud-state'
+const CLOUD_TOTALS = 'cloud-totals'
+/** Folders searched below the home folder for repos, and at most how many folders are looked into. */
+const FIND_DEPTH = 5
+const FIND_VISITS = 20_000
+type CloudState = { scanAt: number; findAt: number; found: string[]; seen: string[]; repos: number }
+const noCloudState = (): CloudState => ({ scanAt: 0, findAt: 0, found: [], seen: [], repos: 0 })
+let scanning = false
+let nextCloudCheck = 0
+
+/** Every repo below the home folder (mode "all"): a folder holding `.git` is one, and its insides are not searched. */
+const findRepos = async ($: any): Promise<string[]> => {
+  const home = ((await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE')) ?? '').replace(/[\\/]+$/, '')
+  if (!home) return []
+  const out: string[] = []
+  const queue: { dir: string; depth: number }[] = [{ dir: home, depth: 0 }]
+  let visits = 0
+  while (queue.length > 0 && visits < FIND_VISITS) {
+    const { dir, depth } = queue.shift()!
+    visits++
+    let entries: { name: string; kind: string }[] = []
+    try {
+      entries = await $.fs.list(dir)
+    } catch {
+      continue
+    }
+    if (entries.some(e => e.name === '.git' && e.kind !== 'other')) {
+      out.push(dir)
+      continue
+    }
+    if (depth >= FIND_DEPTH) continue
+    for (const e of entries) if (e.kind === 'dir' && !skipDir(e.name)) queue.push({ dir: `${dir}/${e.name}`, depth: depth + 1 })
+  }
+
+  return out
+}
+
+/** The repo a folder is in (its top folder), or '' when it is in none. */
+const repoOf = async ($: any, dir: string): Promise<string> => {
+  if (!dir) return ''
+  try {
+    const r = await $.process.run(['git', '-C', dir, 'rev-parse', '--show-toplevel'], { timeoutMs: 10_000 })
+
+    return r.exitCode === 0 ? r.stdout.trim() : ''
+  } catch {
+    return ''
+  }
+}
+
+const isHash = (h: string) => /^[0-9a-f]{40,64}$/.test(h)
+
+/** Reads the given commits' added lines, halving the batch when git's output was cut at 4 MiB. */
+const readCommits = async ($: any, repo: string, hashes: string[]): Promise<Record<string, CloudCommit>> => {
+  let r
+  try {
+    r = await $.process.run(showArgs(repo, hashes), { timeoutMs: 120_000 })
+  } catch {
+    return {}
+  }
+  if (r.exitCode !== 0) return {}
+  if (r.isStdoutTruncated && hashes.length > 1) {
+    const half = Math.ceil(hashes.length / 2)
+
+    return { ...(await readCommits($, repo, hashes.slice(0, half))), ...(await readCommits($, repo, hashes.slice(half))) }
+  }
+  const got = parseLog(r.stdout, repo)
+  // A commit git listed but that holds no lines to count is kept as empty, so it is not read again.
+  for (const h of hashes) got[h] ??= { at: 0, s: '', m: '', q: false, k: h, c: { ...EMPTY }, x: {}, r: repo }
+
+  return got
+}
+
+/** The repos read: in "all" every one found plus those chats ran in plus those added; in "picked" those added. */
+const cloudRepos = (p: Prefs, st: CloudState): string[] => {
+  const list = p.cloud === 'all' ? [...st.found, ...st.seen, ...p.cloudRepos] : p.cloudRepos
+  const out: string[] = []
+  for (const r of list) if (r && !out.some(x => samePath(x, r))) out.push(r)
+
+  return out
+}
+
+/** Works the cloud lines out again from the commits kept (after a scan, or the mode or repo list changed). */
+const rebuildCloud = async ($: any, now: number) => {
+  const p = await read($, prefs)
+  const all = Object.values(((await $.store.get(CLOUD_COMMITS)) ?? {}) as Record<string, CloudCommit>)
+  const use = p.cloud === 'picked' ? all.filter(c => p.cloudRepos.some(r => samePath(r, c.r))) : all
+  await $.store.set(CLOUD_TOTALS, cloudTotals(use, now))
+}
+
+/**
+ * Every few minutes one chat asks each repo for cloud commits it has not read yet (the store says when the
+ * last ask was, so the other chats skip). Only git on this computer: nothing is fetched from the network.
+ */
+const cloudScan = async ($: any, force = false) => {
+  if (scanning) return
+  const now = await $.clock.now()
+  if (!force && now < nextCloudCheck) return
+  nextCloudCheck = now + 60_000
+  const p = await read($, prefs)
+  if (p.cloud === 'off') return
+  const st = { ...noCloudState(), ...(((await $.store.get(CLOUD_STATE)) ?? {}) as Partial<CloudState>) }
+  if (!force && now - st.scanAt < SCAN_MS) return
+  scanning = true
+  try {
+    await $.store.set(CLOUD_STATE, { ...st, scanAt: now })
+    if (p.cloud === 'all' && (force || now - st.findAt > FIND_MS)) {
+      st.found = await findRepos($)
+      st.findAt = now
+    }
+    const here = await repoOf($, cwd)
+    if (here && !st.seen.some(x => samePath(x, here))) st.seen = [...st.seen, here].slice(-200)
+    const repos = cloudRepos(p, st)
+    const commits = ((await $.store.get(CLOUD_COMMITS)) ?? {}) as Record<string, CloudCommit>
+    let added = 0
+    for (const repo of repos) {
+      let listed
+      try {
+        listed = await $.process.run(listArgs(repo), { timeoutMs: 60_000 })
+      } catch {
+        continue
+      }
+      if (listed.exitCode !== 0) continue
+      const hashes: string[] = String(listed.stdout).split('\n').map(h => h.trim())
+      const fresh = [...new Set(hashes)].filter(h => isHash(h) && !commits[h])
+      for (let i = 0; i < fresh.length; i += BATCH) {
+        const got = await readCommits($, repo, fresh.slice(i, i + BATCH))
+        Object.assign(commits, got)
+        added += Object.keys(got).length
+      }
+    }
+    if (added > 0) await $.store.set(CLOUD_COMMITS, commits)
+    await $.store.set(CLOUD_STATE, { ...st, scanAt: now, repos: repos.length })
+    await rebuildCloud($, now)
+    await syncTotals($, now)
+  } finally {
+    scanning = false
+  }
 }
 
 /**
@@ -493,6 +643,7 @@ const refresh = async ($: any) => {
     await $.store.set(key, ownCache)
   }
   await syncTotals($, now)
+  void cloudScan($).catch(() => {})
 
   const asleep = now - lastActive > sleepAfter(now)
   const p = await read($, pulse)
@@ -625,7 +776,8 @@ export const register: Register = on => {
     const now = await $.clock.now()
     Object.assign(anim, newAnim(now))
     lastActive = now
-    project = ((e as { cwd?: string }).cwd ?? '').split('/').filter(Boolean).pop() || 'session'
+    cwd = (e as { cwd?: string }).cwd ?? ''
+    project = cwd.split('/').filter(Boolean).pop() || 'session'
     const self = PREFIX + (await $.session.id())
     await fold($, self, now)
     await checkMorning($, now)
@@ -639,7 +791,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'linecount',
       description:
-        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, background <name>, section <name> on|off',
+        'Lines tracker: /linecount [show|status|pane|mascot|reset] [on|off], style <name>, outfit <name>, background <name>, section <name> on|off, cloud [all|picked|off|add|remove|scan]',
     })
 
     startTimers($)
@@ -710,13 +862,61 @@ export const register: Register = on => {
 
     if (what === 'computers') {
       const dir = await peerFolder($)
-      if (!dir) return { text: 'Computers: no sync folder set, so each Mac counts alone. Use /linecount sync <folder>.' }
-      const me = await whoAmI($)
       const t = await read($, totals)
+      const list = t.machines.map(m => `${m.name}${m.mine ? ' (this one)' : ''}: ${m.today} today, ${m.life} all time`).join('; ')
+      if (!dir) return { text: list ? `Computers: no sync folder set, so no other Mac is counted. ${list}.` : 'Computers: no sync folder set, so each Mac counts alone. Use /linecount sync <folder>.' }
+      const me = await whoAmI($)
       if (!me) return { text: 'Computers: this build cannot run commands here, so the two-Mac count is off.' }
-      const list = t.machines.length ? t.machines.map(m => `${m.name}${m.mine ? ' (this one)' : ''}: ${m.today} today, ${m.life} all time`).join('; ') : 'no other Mac has left a file yet'
 
-      return { text: `This Mac: ${me.name} (${me.id}). Folder: ${dir}. ${list}.` }
+      return { text: `This Mac: ${me.name} (${me.id}). Folder: ${dir}. ${list || 'no other Mac has left a file yet'}.` }
+    }
+
+    if (what === 'cloud') {
+      const p = await read($, prefs)
+      const rest = e.args.trim().replace(/^\S+\s*/, '').replace(/^\S+\s*/, '')
+      const now = await $.clock.now()
+      const home = (await $.env.get('HOME')) ?? ''
+      if ((CLOUD_MODES as readonly string[]).includes(value ?? '')) {
+        if (value === 'picked' && p.cloudRepos.length === 0) return { text: 'cloud: no repos picked yet. Add one first with /linecount cloud add <repo folder>.' }
+        await set({ cloud: value })
+        nextCloudCheck = 0
+        await rebuildCloud($, now)
+        await syncTotals($, now)
+        if (value !== 'off') void cloudScan($, true).catch(() => {})
+        const reads = value === 'all' ? 'every repo below your home folder, every repo a chat ran in, and any you added' : value === 'picked' ? `only the repos you added (${p.cloudRepos.length})` : 'nothing; cloud lines are left out'
+
+        return { text: `cloud: ${value}. Reads ${reads}.` }
+      }
+      if (value === 'add' || value === 'remove') {
+        if (!rest) return { text: `cloud ${value}: give a repo folder, for example /linecount cloud ${value} ~/code/my-app` }
+        const dir = expandDir(rest, home)
+        if (value === 'remove') {
+          const left = p.cloudRepos.filter(r => !samePath(r, dir))
+          if (left.length === p.cloudRepos.length) return { text: `cloud remove: ${dir} is not in the list. Picked: ${p.cloudRepos.join(', ') || 'none'}.` }
+          await set({ cloudRepos: left, ...(left.length === 0 && p.cloud === 'picked' ? { cloud: 'all' } : {}) })
+          await rebuildCloud($, now)
+          await syncTotals($, now)
+
+          return { text: `cloud: removed ${dir}.${left.length === 0 && p.cloud === 'picked' ? ' No repos left, so back to all.' : ''}` }
+        }
+        const top = await repoOf($, dir)
+        if (!top) return { text: `cloud add: ${dir} is not in a git repo.` }
+        if (!p.cloudRepos.some(r => samePath(r, top))) await set({ cloudRepos: [...p.cloudRepos, top] })
+        void cloudScan($, true).catch(() => {})
+
+        return { text: `cloud: added ${top}.${p.cloud === 'all' ? ' (Mode is all, so it was read anyway; /linecount cloud picked reads only the ones you add.)' : ''}` }
+      }
+      if (value === 'scan') {
+        await cloudScan($, true)
+      }
+      const st = { ...noCloudState(), ...(((await $.store.get(CLOUD_STATE)) ?? {}) as Partial<CloudState>) }
+      const ct = (await $.store.get(CLOUD_TOTALS)) as ReturnType<typeof cloudTotals> | undefined
+      const today = ct && ct.d === dayKey(now) ? ct.today.code : 0
+      const counted = ct ? `${fmt(today)} code lines today, ${fmt(ct.life.code)} all time, from ${fmt(ct.commits)} commits in ${fmt(ct.sessions)} cloud sessions` : 'nothing counted yet'
+      const repos = p.cloud === 'picked' ? `picked: ${p.cloudRepos.join(', ')}` : p.cloud === 'all' ? `${st.repos} repos read${p.cloudRepos.length ? `, including ${p.cloudRepos.length} added` : ''}` : 'off'
+      const when = st.scanAt ? ` Last looked ${new Date(st.scanAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.` : ''
+
+      return { text: `cloud: ${p.cloud} (${repos}). ${counted}.${when} Change with /linecount cloud all|picked|off, add|remove <repo>, scan.` }
     }
 
     if (what === 'style') {

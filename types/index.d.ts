@@ -90,6 +90,10 @@ export type Prefs = {
   count: string
   /** Folder shared between this Mac and the others (by Syncthing, iCloud Drive, Dropbox ...). Empty: nothing is written or read. Set per Mac with /linecount sync. */
   syncDir: string
+  /** Lines from Claude Code cloud sessions, read from git commits: all (every repo found), picked (cloudRepos only) or off. */
+  cloud: string
+  /** Repos added with /linecount cloud add: the only ones read in mode "picked", read on top of the found ones in "all". */
+  cloudRepos: string[]
   /** Pane sections switched on or off, by section id. */
   sections: Record<string, boolean>
 }

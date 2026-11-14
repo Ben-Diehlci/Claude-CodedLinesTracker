@@ -44,6 +44,8 @@ export const defaultPrefs = (): Prefs => ({
   bg: 'none',
   count: 'both',
   syncDir: '',
+  cloud: 'all',
+  cloudRepos: [],
   lookOpen: false,
   sections: Object.fromEntries(SECTIONS.map(s => [s.id, !('off' in s)])),
 })

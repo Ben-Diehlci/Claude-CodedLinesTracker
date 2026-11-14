@@ -181,7 +181,7 @@ export const computersSvg = (v: View, w: number): Piece => {
   }
   s += text(w, y2 + 24, fmt(total), { cls: 'mu', size: 13, anchor: 'end' })
   const seen = ms.filter(m => !m.mine).map(m => `${m.name}: ${seenLabel(m, v.now)}`).join(', ')
-  s += text(0, y2 + 42, `Lines today per Mac. Last seen: ${seen}`, { cls: 'mu', size: 11 })
+  s += text(0, y2 + 42, `Lines today per computer. Last seen: ${seen}`, { cls: 'mu', size: 11 })
 
   return piece(w, y2 + 50, s, `Computers: ${ms.map(m => `${m.name} ${fmt(m.today)} today, ${fmt(m.life)} all time`).join('; ')}`)
 }

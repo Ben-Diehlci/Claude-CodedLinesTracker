@@ -67,6 +67,8 @@ Clawd's wardrobe (on "auto" he picks one a day, some days none, and a nightcap a
 
 **Two or more computers (optional):** point each computer at a folder you already sync, and the pane shows each computer in its own color plus a combined count. See [How counting works](#how-counting-works).
 
+**Cloud sessions:** lines written by Claude Code cloud sessions (claude.ai/code, the mobile app) show up as one more computer, **Cloud**, read from the commits those sessions leave in your git repos. See [Cloud sessions](#cloud-sessions).
+
 ---
 
 ## Requirements
@@ -159,6 +161,10 @@ Everything is under one slash command, `/linecount`:
 | `/linecount sync <folder>\|off` | Count across computers using a synced folder (`/linecount sync` alone shows the folder in use) |
 | `/linecount count this\|both` | Show only this computer's numbers, or add all computers up |
 | `/linecount computers` | List the computers in the count, with their colors and when each was last seen |
+| `/linecount cloud` | Shows the cloud-session count: the mode, how many repos it reads, lines today and all time |
+| `/linecount cloud all\|picked\|off` | Which repos are read for cloud lines: every one found (the default), only the ones you added, or none |
+| `/linecount cloud add\|remove <repo>` | Add a repo to the picked list, or take one off it |
+| `/linecount cloud scan` | Look for new cloud commits now instead of within 5 minutes |
 | `/linecount reset` | Zeroes this chat's counts (today and all-time totals stay) |
 
 Most of these are also buttons and pickers at the bottom of the pane (behind a Settings button when the pane has a background color).
@@ -178,6 +184,12 @@ Run `/linecount style compact`, or leave it on `auto`, which switches to compact
 
 **"I only want the numbers, no crab."**
 Run `/linecount mascot off`. The counting carries on as before.
+
+**"I also use Claude Code on the web and on my phone."**
+Nothing to set up: once those sessions' commits are on this computer (after a `git pull` or `git fetch`), the pane shows a **Cloud** row. `/linecount cloud` shows what was found.
+
+**"Only count cloud work in my work repos."**
+Run `/linecount cloud add ~/code/app` for each one, then `/linecount cloud picked`.
 
 **"I use a laptop and a desktop."**
 Set up the two-computer count below; `/linecount computers` then shows both, each in its own color.
@@ -201,17 +213,44 @@ By default each computer counts alone. To see each computer and a combined count
 
 Each computer writes only its own small file there and reads the others. A computer never edits another's file, so the sync tool has nothing to conflict over. A computer that is off keeps its last numbers, shown with "last seen". `/linecount count both` (the default once a folder is set) adds them up; `/linecount count this` shows only this computer's numbers.
 
+### Cloud sessions
+
+A cloud session runs in a container that is gone when the session ends, so the mod never sees its Write and Edit actions. What the session leaves behind is commits, and each one ends with lines like these:
+
+```
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01...
+```
+
+Every 5 minutes one open chat asks git, on this computer, for commits carrying a `Claude-Session: https://claude.ai/code/session_` line that it has not read yet. It counts their added lines with the same rules as everything else and shows them as a computer called **Cloud**. The commit's time gives the day and hour, and the `Co-Authored-By` line gives the model for the rings. With `/linecount count this` the Cloud row is listed but not added in.
+
+Which repos are read (`/linecount cloud all|picked|off`):
+
+- **all** (the default): every repo below your home folder, searched up to 5 folders deep once an hour; every repo a chat ran in; and any you added. Hidden folders and ones like `node_modules`, `Library` and `Downloads` are skipped.
+- **picked:** only the repos you added with `/linecount cloud add <repo>`.
+- **off:** cloud lines are left out.
+
+What to know:
+
+- **Only commits on this computer count.** The mod never fetches, so a cloud session's work shows up once you `git pull` or `git fetch` that repo here. All branches are read, including remote-tracking ones.
+- **It counts the commit, not each edit.** Code Claude rewrote within a session counts once, as committed. Lines you added by hand to the same commit count too.
+- **Nothing is counted twice:** the same change found again (in a second clone, rebased or cherry-picked) counts once. A GitHub squash merge is skipped while the commits it squashed are still around, and counted once they are gone.
+- **Lock files** (`package-lock.json`, `yarn.lock`, `Cargo.lock`, `go.sum` and the like) and minified files are left out, since tools write them, not Claude.
+- Lines from commits already counted stay counted, even if that repo is later deleted. In **picked** mode only the picked repos' commits are shown.
+- With two-computer counting on, each computer shows the cloud commits in its own repos; they are not written to the synced folder.
+
 ---
 
 ## What it reads and writes
 
-- **Reads:** what Claude passes to its Write and Edit actions (the file's name and the lines written), to count them. With two-computer counting on, the other computers' totals files in your synced folder.
+- **Reads:** what Claude passes to its Write and Edit actions (the file's name and the lines written), to count them. With two-computer counting on, the other computers' totals files in your synced folder. With cloud counting on (the default), the folder names below your home folder (to find repos) and, through `git log`, the commits there that carry a `Claude-Session:` line.
 - **Writes:**
   - the counts, by day, model, file type and file, in Claude Code's plugin store on your computer
   - your `/linecount` settings, in the same store
+  - for each cloud commit counted: its time, session id, model and line counts (no file names or code), in the same store
   - with two-computer counting on, `totals-<computer name>.json` in your synced folder: line counts and the computer's model name (such as "MacBook Pro"), no file names or code
-- **Runs:** with two-computer counting on, `scutil --get LocalHostName` and `system_profiler SPHardwareDataType` (macOS) to name the computer.
-- **Never:** sends anything over the network, asks a model anything, or changes your files. Your sync tool, not the mod, moves the totals file.
+- **Runs:** `scutil --get LocalHostName` and `system_profiler SPHardwareDataType` (macOS) to name the computer, when two-computer counting is on or cloud lines were found. With cloud counting on, `git log` and `git rev-parse` in your repos (read-only; git runs with repo hooks off).
+- **Never:** sends anything over the network (not even `git fetch`), asks a model anything, or changes your files. Your sync tool, not the mod, moves the totals file.
 
 ---
 
@@ -225,6 +264,8 @@ Each computer writes only its own small file there and reads the others. A compu
 | Lines by model say "earlier" | Those lines were counted before 2026-11-03, when model tracking began. |
 | The other computer doesn't show up | Run `/linecount sync <folder>` on that computer too, check the folder exists there and your sync tool is running, then `/linecount computers`. |
 | The band is cut off | Use `/linecount style compact`, or `auto`. |
+| No Cloud row, or cloud lines missing | Pull or fetch the repo the cloud session pushed to, then `/linecount cloud scan`. Check `/linecount cloud` says `all`, or that the repo is in the picked list. A repo outside your home folder, or deeper than 5 folders, needs `/linecount cloud add <repo>`. |
+| macOS asks whether Claude may open a folder | The cloud repo search lists folders below your home folder. Allow it, or use `/linecount cloud picked` with the repos you want. |
 
 ---
 
@@ -257,6 +298,7 @@ New versions are listed on the [releases page](https://github.com/Ben-Diehlci/Cl
 | `hooks/register.tsx` | Wires it up: events, the store, timers, two-computer sync |
 | `hooks/count.ts`, `hooks/model.ts` | Count the lines and work out the numbers; designs only draw them |
 | `hooks/peers.ts` | Reads and adds up the other computers' totals |
+| `hooks/cloud.ts` | Reads cloud sessions' commits out of `git log` and adds them up as the Cloud computer |
 | `hooks/styles/` | The band designs, one file each. The desktop band is one SVG, which the app caps at 128 KB. |
 | `hooks/clawd.ts` | Clawd: sprite, outfits, tricks |
 | `hooks/stage.ts`, `hooks/scenes.ts` | The stage and its scenes |
