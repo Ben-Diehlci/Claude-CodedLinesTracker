@@ -90,10 +90,12 @@ const noTotals = (): Totals => ({
   exts: 0,
   modelsToday: {},
   modelsLife: {},
+  extsToday: {},
+  extsLife: {},
   machines: [],
 })
 const totals = atom({ plugin: 'lines-tracker', key: 'totals' } as const, noTotals(), {
-  shape: 'totals-5',
+  shape: 'totals-6',
 })
 const pulse = atom({ plugin: 'lines-tracker', key: 'pulse' } as const, { at: 0, n: 0, mile: 0 } as Pulse, {
   shape: 'pulse-2',
@@ -131,10 +133,24 @@ type Own = {
   /** Code lines per model, lifetime, and for the day `d`. */
   ml?: Record<string, number>
   mt?: { d: string; v: Record<string, number> }
+  /** Code lines per file extension, lifetime, and for the day `d` (from v0.3.0). */
+  xl?: Record<string, number>
+  xt?: { d: string; v: Record<string, number> }
   /** This session's own stats, a copy of the session atom (memory), so a chat the app put to sleep gets them back. */
   s?: Stats
 }
-type Base = { life: Counts; days: Record<string, Counts>; folded: string[]; owl?: boolean; exts?: string[]; models?: Record<string, number> }
+type Base = { life: Counts; days: Record<string, Counts>; folded: string[]; owl?: boolean; exts?: string[]; models?: Record<string, number>; xl?: Record<string, number> }
+
+/**
+ * A session's code lines per file type. Keys from before v0.3.0 have none, but keep a copy of the session's
+ * stats, whose byExt is the same thing for that session's whole life: those stand in.
+ */
+const ownExts = (o: Own): Record<string, number> => o.xl ?? o.s?.byExt ?? {}
+const ownExtsToday = (o: Own, today: string): Record<string, number> => {
+  if (o.xt) return o.xt.d === today ? o.xt.v : {}
+  // The stats copy is today's only when the session wrote on no other day.
+  return !o.xl && Object.keys(o.days).every(d => d === today) ? (o.s?.byExt ?? {}) : {}
+}
 
 const keepDays = (days: Record<string, Counts>, n: number): Record<string, Counts> => {
   const out: Record<string, Counts> = {}
@@ -176,6 +192,8 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
   let exts = base.exts ?? []
   let modelsLife = base.models ?? {}
   let modelsToday: Record<string, number> = {}
+  let extsLife = base.xl ?? {}
+  let extsToday: Record<string, number> = {}
   const list: Row[] = []
   let sessions = 0
   for (const k of (await $.store.keys()) as string[]) {
@@ -189,6 +207,8 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     exts = union(exts, o.exts)
     modelsLife = addMap(modelsLife, o.ml)
     if (o.mt?.d === today) modelsToday = addMap(modelsToday, o.mt.v)
+    extsLife = addMap(extsLife, ownExts(o))
+    extsToday = addMap(extsToday, ownExtsToday(o, today))
     const wrote = o.w ?? 0
     const active = wrote > 0 && now - wrote < ACTIVE_MS
     if (active) sessions++
@@ -211,6 +231,8 @@ const sumSessions = async ($: any, now: number): Promise<Totals> => {
     exts: exts.length,
     modelsToday,
     modelsLife,
+    extsToday,
+    extsLife,
     machines: [],
   }
 }
@@ -225,6 +247,7 @@ const fold = async ($: any, self: string, now: number) => {
   let owl = base.owl ?? false
   let exts = base.exts ?? []
   let models = base.models ?? {}
+  let xl = base.xl ?? {}
   for (const k of (await $.store.keys()) as string[]) {
     if (!k.startsWith(PREFIX) || k === self) continue
     const o = (await $.store.get(k)) as Own | undefined
@@ -236,6 +259,7 @@ const fold = async ($: any, self: string, now: number) => {
       owl = owl || !!o.owl
       exts = union(exts, o.exts)
       models = addMap(models, o.ml)
+      xl = addMap(xl, ownExts(o))
     }
     done.push(k)
   }
@@ -247,6 +271,7 @@ const fold = async ($: any, self: string, now: number) => {
     owl,
     exts,
     models,
+    xl,
   })
   for (const k of done) await $.store.delete(k)
 }
@@ -313,6 +338,8 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
     hours: { d, v: hours },
     ml: addMap(own.ml ?? {}, { [model]: counts.code }),
     mt: { d, v: mt },
+    xl: addMap(ownExts(own), counts.code > 0 ? { [ext]: counts.code } : {}),
+    xt: { d, v: addMap(ownExtsToday(own, d), counts.code > 0 ? { [ext]: counts.code } : {}) },
     owl: own.owl || (isNight(now) && counts.code > 0),
     exts: counts.code > 0 ? union(own.exts, [ext]) : (own.exts ?? []),
     s: trimStats(await read($, session)),
@@ -737,7 +764,11 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     minutes,
     writes: s.writes,
     edits: s.edits,
-    byExt: top(s.byExt, 5),
+    byExt: top(s.byExt, 20),
+    langToday: top(t.extsToday ?? {}, 20),
+    langLife: top(t.extsLife ?? {}, 20),
+    langEarlierToday: Math.max(0, t.today.code - sum(t.extsToday)),
+    langEarlierLife: Math.max(0, t.life.code - sum(t.extsLife)),
     byFile: top(s.byFile, 5),
     files: Object.keys(s.byFile).length,
   }

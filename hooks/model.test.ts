@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { canvasH, clawdBody, grid, LOOP_MS, mark, OUTFITS, TRICKS } from './clawd'
-import { badgesOf, bestDay, heat, levelOf, mergePrefs, modelName, pickOutfit, streaks } from './model'
+import { badgesOf, bestDay, heat, langRows, levelOf, mergePrefs, modelName, pickOutfit, streaks } from './model'
 
 const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
 const NOON = new Date(2026, 10, 3, 12).getTime()
@@ -95,4 +95,19 @@ test('new tricks: spin turns Clawd around, peek ducks him below the edge, sneeze
   expect(ducked.slice(0, 5).every(r => r.every(c => c === '.'))).toBe(true)
   expect(mark({ sneeze: true })?.ch).toBe('*')
   for (const t of ['spin', 'peek', 'sneeze']) expect(Object.keys(TRICKS)).toContain(t)
+})
+
+test('languages: one color per type on every row, the sixth type on is "other", untracked lines "earlier"', () => {
+  const { named, rows } = langRows({
+    byExt: [['ts', 40], ['md', 5]],
+    langToday: [['ts', 300], ['py', 100]],
+    langLife: [['py', 900], ['ts', 800], ['go', 50], ['rs', 40], ['sh', 30], ['md', 20], ['css', 10]],
+    langEarlierToday: 0,
+    langEarlierLife: 1000,
+  })
+  expect(named).toEqual(['py', 'ts', 'go', 'rs', 'sh'])
+  expect(rows.map(r => r.label)).toEqual(['This chat', 'Today', 'All time'])
+  expect(rows[0]!.parts).toEqual([{ key: 'ts', n: 40, slot: 1 }, { key: 'other', n: 5, slot: -1 }])
+  expect(rows[2]!.parts.slice(-2)).toEqual([{ key: 'other', n: 30, slot: -1 }, { key: 'earlier', n: 1000, slot: -2 }])
+  expect(rows[2]!.total).toBe(2850)
 })

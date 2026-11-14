@@ -67,6 +67,10 @@ export type Totals = {
   modelsToday: Record<string, number>
   /** Code lines per model since tracking began (2026-11-03); life.code less their sum came before. */
   modelsLife: Record<string, number>
+  /** Code lines today per file extension ("ts"), every session (and every computer with count "both"). */
+  extsToday: Record<string, number>
+  /** Code lines per file extension since tracking began (v0.3.0); life.code less their sum came before. */
+  extsLife: Record<string, number>
   /** Every Mac known (this one first), empty when only this one. With count "both" the fields above already include the others. */
   machines: Machine[]
 }

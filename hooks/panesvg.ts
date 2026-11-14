@@ -3,7 +3,7 @@
 import { clawdBody, canvasH } from './clawd'
 import { donut, est, heatStrip, rect, svgDoc, text } from './draw'
 import type { Mode } from './draw'
-import { HEAT_WEEKS, fmt, modelColor } from './model'
+import { HEAT_WEEKS, fmt, langRows, modelColor } from './model'
 import { seenLabel } from './peers'
 import type { View } from './model'
 
@@ -195,29 +195,55 @@ const barsFor = (w: number): { barX: number; barW: number } => {
 
 const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
 
-/** One stacked bar of this session's code by file type, and a legend. */
-export const languagesSvg = (v: View, w: number): Piece => {
-  const total = v.byExt.reduce((n, [, c]) => n + c, 0)
-  const h = 48
-  let s = text(0, 10, 'LANGUAGES', TAG)
-  s += `<clipPath id="lb"><rect x="0" y="18" width="${w}" height="10" rx="5"/></clipPath>`
-  let x = 0
-  let bars = rect(0, 18, w, 10, 'hf', 5)
-  v.byExt.forEach(([, n], i) => {
-    const bw = total ? (w * n) / total : 0
-    bars += rect(x, 18, bw, 10, LANG[i % LANG.length])
-    x += bw
-  })
-  s += `<g clip-path="url(#lb)">${bars}</g>`
-  let lx = 0
-  v.byExt.forEach(([ext, n], i) => {
-    const label = `.${ext} ${fmt(n)}`
-    s += rect(lx, 37, 8, 8, LANG[i % LANG.length], 2) + text(lx + 12, 45, label, { cls: 'mu', size: 12 })
-    lx += 12 + est(label, 12) + 12
-  })
-  if (!v.byExt.length) s += text(0, 45, 'nothing written yet this session', { cls: 'mu', size: 12 })
+/** A Languages part's fill: its type's color, or muted grey for "other" and fainter for "earlier". */
+const langFill = (slot: number): [string, string] =>
+  slot >= 0 ? [LANG[slot % LANG.length] ?? 'cf', ''] : ['mu', slot === -1 ? 'opacity=".55"' : 'opacity=".25"']
 
-  return piece(w, h, s, `Languages: ${v.byExt.map(([e, n]) => `.${e} ${fmt(n)}`).join(', ') || 'none yet'}`)
+/** Code by file type: a stacked bar each for this chat, today and all time, then a table of the numbers. */
+export const languagesSvg = (v: View, w: number): Piece => {
+  const { named, rows } = langRows(v)
+  const lx = 64
+  const bw = Math.max(40, w - lx - 60)
+  let s = text(0, 10, 'LANGUAGES', TAG)
+  rows.forEach((r, i) => {
+    const y = 20 + i * 20
+    s += text(0, y + 9, r.label, { cls: 'mu', size: 12 })
+    s += `<clipPath id="lb${i}"><rect x="${lx}" y="${y}" width="${bw}" height="10" rx="5"/></clipPath>`
+    let bars = rect(lx, y, bw, 10, 'hf', 5)
+    let x = lx
+    for (const p of r.parts) {
+      const pw = r.total ? (bw * p.n) / r.total : 0
+      const [cls, extra] = langFill(p.slot)
+      bars += rect(x, y, pw, 10, cls, 0, extra)
+      x += pw
+    }
+    s += `<g clip-path="url(#lb${i})">${bars}</g>`
+    s += text(w, y + 9, fmt(r.total), { cls: 'mu', size: 12, anchor: 'end' })
+  })
+  const keys = [...named.map((k, slot) => ({ key: k, slot })), { key: 'other', slot: -1 }, { key: 'earlier', slot: -2 }].filter(k =>
+    rows.some(r => r.parts.some(p => p.key === k.key)),
+  )
+  let y = 20 + rows.length * 20 + 10
+  if (keys.length === 0) {
+    s += text(0, y + 4, 'nothing written yet', { cls: 'mu', size: 12 })
+
+    return piece(w, y + 12, s, 'Languages: none yet')
+  }
+  const cols = [w - 136, w - 68, w]
+  ;['chat', 'today', 'all time'].forEach((h, i) => (s += text(cols[i] ?? w, y, h.toUpperCase(), { ...TAG, anchor: 'end' })))
+  for (const k of keys) {
+    y += 17
+    const [cls, extra] = langFill(k.slot)
+    s += rect(0, y - 8, 8, 8, cls, 2, extra)
+    s += text(14, y, clip(k.slot >= 0 ? `.${k.key}` : k.key, Math.floor((w - 150) / 7)), { cls: 'fg', size: 12 })
+    rows.forEach((r, i) => {
+      const n = r.parts.find(p => p.key === k.key)?.n ?? 0
+      s += text(cols[i] ?? w, y, n ? fmt(n) : '–', { cls: 'mu', size: 12, anchor: 'end' })
+    })
+  }
+  const alt = rows.map(r => `${r.label.toLowerCase()} ${r.parts.map(p => `${p.slot >= 0 ? '.' : ''}${p.key} ${fmt(p.n)}`).join(', ') || 'none'}`).join('; ')
+
+  return piece(w, y + 6, s, `Languages: ${alt}`)
 }
 
 /** The biggest files this session, as rows like the sessions list. */

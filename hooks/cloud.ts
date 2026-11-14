@@ -149,14 +149,15 @@ export const countable = (commits: CloudCommit[]): CloudCommit[] => {
 }
 
 /** Cloud lines in the shape another computer leaves in the synced folder, so they merge the same way. */
-export const cloudTotals = (commits: CloudCommit[], now: number): PeerFile & { sessions: number; commits: number; exts: Record<string, number> } => {
+export const cloudTotals = (commits: CloudCommit[], now: number): PeerFile & { sessions: number; commits: number } => {
   const today = dayKey(now)
   let life: Counts = { ...EMPTY }
   const days: Record<string, Counts> = {}
   const hours: number[] = Array(24).fill(0)
   const modelsToday: Record<string, number> = {}
   const modelsLife: Record<string, number> = {}
-  const exts: Record<string, number> = {}
+  const extsLife: Record<string, number> = {}
+  const extsToday: Record<string, number> = {}
   const sessions = new Set<string>()
   let last = 0
   const use = countable(commits)
@@ -166,7 +167,10 @@ export const cloudTotals = (commits: CloudCommit[], now: number): PeerFile & { s
     days[d] = addC(days[d] ?? EMPTY, c.c)
     sessions.add(c.s)
     last = Math.max(last, c.at)
-    for (const [e, n] of Object.entries(c.x)) exts[e] = (exts[e] ?? 0) + n
+    for (const [e, n] of Object.entries(c.x)) {
+      extsLife[e] = (extsLife[e] ?? 0) + n
+      if (d === today) extsToday[e] = (extsToday[e] ?? 0) + n
+    }
     if (c.m) modelsLife[c.m] = (modelsLife[c.m] ?? 0) + c.c.code
     if (d === today) {
       const hr = new Date(c.at).getHours()
@@ -188,9 +192,10 @@ export const cloudTotals = (commits: CloudCommit[], now: number): PeerFile & { s
     hours,
     modelsToday,
     modelsLife,
+    extsToday,
+    extsLife,
     sessions: sessions.size,
     commits: use.length,
-    exts,
   }
 }
 

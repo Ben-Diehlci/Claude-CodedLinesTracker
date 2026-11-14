@@ -148,3 +148,30 @@ test('cloud lines show as their own computer without a sync folder, and leave wi
   await run($, 'cloud off')
   expect(await alt()).toBeUndefined()
 })
+
+test('languages: this chat, today across chats (an older chat from its saved stats) and cloud, and all time', async ($, on) => {
+  stubs(on)
+  const T = AT + 3600_000
+  const d = dayKey(T)
+  const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+  // A chat from before per-type tracking: no xl, but its saved stats know its file types.
+  const older = { t: T, w: T - 60_000, proj: 'old', life: c(30), days: { [d]: c(30) }, hours: { d, v: [] }, owl: false, exts: ['go'], s: { total: c(30), writes: 1, edits: 0, byExt: { go: 30 }, byFile: {}, startedAt: T } }
+  memory(on, { 'cloud-totals': cloudTotals(Object.values(parseLog(OUT, '/r')), T), 's-old': older })
+  mock.clock(on, { now: T })
+
+  await $.session.start({ cwd: '/work/proj', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/a/x.ts', content: 'const a = 1\nconst b = 2' })
+  await $.tool.call({ tool: 'Write', file_path: '/a/y.py', content: 'x = 1' })
+
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const pane = await $.ui.mount({ ...PANE, surface } as any)
+    if (surface === 'desktop') {
+      const alt = ((await pane.findAll({ type: 'Svg' })) as any[]).map(x => x.props?.alt as string).find(a => /^Languages:/.test(a ?? ''))
+      // Cloud adds .ts 2 and .py 2 (its squash is skipped).
+      expect(alt).toBe('Languages: this chat .ts 2, .py 1; today .go 30, .ts 4, .py 3; all time .go 30, .ts 4, .py 3')
+    } else {
+      expect(await pane.find({ type: 'Text', text: /\.go\s+-\s+30\s+30/ })).toBeTruthy()
+    }
+    await pane.unmount()
+  }
+})

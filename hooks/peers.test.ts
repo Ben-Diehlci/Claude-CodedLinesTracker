@@ -16,6 +16,8 @@ const totals = (today: number, life: number): Totals => ({
   exts: 0,
   modelsToday: { 'Opus 5.5': today },
   modelsLife: { 'Opus 5.5': life },
+  extsToday: { ts: today },
+  extsLife: { ts: life },
   machines: [],
 })
 
@@ -26,6 +28,8 @@ test('two Macs add up, and each keeps its own line', () => {
   expect(t.life.code).toBe(48000)
   expect(t.hours[15]).toBe(1904)
   expect(t.modelsToday['Opus 5.5']).toBe(1904)
+  expect(t.extsToday.ts).toBe(1904)
+  expect(t.extsLife.ts).toBe(48000)
   expect(t.machines.map(m => [m.name, m.today, m.mine])).toEqual([['MacBook Pro', 1044, true], ['Mac Studio', 860, false]])
   expect(t.machines[0].slot).not.toBe(t.machines[1].slot)
 })

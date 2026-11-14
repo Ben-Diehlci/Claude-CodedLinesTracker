@@ -164,7 +164,7 @@ export const badgesOf = (t: Totals, best: number): Badge[] => [
   { id: 'owl', label: 'Night owl', got: t.owl },
   { id: 'club', label: '10k club', got: t.life.code >= 10_000 },
   { id: 'comment', label: 'Comment champ', got: t.life.comments >= 1000 },
-  { id: 'poly', label: 'Polyglot (5 types)', got: t.exts >= 5 },
+  { id: 'poly', label: 'Polyglot (5 types)', got: Math.max(t.exts, Object.keys(t.extsLife ?? {}).length) >= 5 },
 ]
 
 export const heat = (v: number, max: number): number => (v <= 0 ? 0 : Math.min(4, 1 + Math.floor((v / Math.max(1, max)) * 3.999)))
@@ -220,5 +220,45 @@ export type View = {
   edits: number
   byExt: [string, number][]
   byFile: [string, number][]
+  /** Code lines by file type, biggest first: today and all time (every session; every computer with count both). */
+  langToday: [string, number][]
+  langLife: [string, number][]
+  /** Code lines today and all time from before per-type tracking (v0.3.0). */
+  langEarlierToday: number
+  langEarlierLife: number
   files: number
+}
+
+/** File types given their own color in the Languages section; the rest are "other". */
+export const LANG_SLOTS = 5
+
+export type LangPart = { key: string; n: number; slot: number }
+export type LangRow = { label: string; total: number; parts: LangPart[] }
+
+/**
+ * The Languages section: one row each for this chat, today and all time. A type keeps one color on every
+ * row (ranked by all time, then today, then this chat); types past the fifth are "other" (slot -1), and lines
+ * from before per-type tracking are "earlier" (slot -2).
+ */
+export const langRows = (v: Pick<View, 'byExt' | 'langToday' | 'langLife' | 'langEarlierToday' | 'langEarlierLife'>): { named: string[]; rows: LangRow[] } => {
+  const rank: string[] = []
+  for (const list of [v.langLife, v.langToday, v.byExt]) for (const [e, n] of list) if (n > 0 && !rank.includes(e)) rank.push(e)
+  const named = rank.slice(0, LANG_SLOTS)
+  const row = (label: string, list: [string, number][], earlier: number): LangRow => {
+    const parts: LangPart[] = []
+    named.forEach((key, slot) => {
+      const n = list.find(x => x[0] === key)?.[1] ?? 0
+      if (n > 0) parts.push({ key, n, slot })
+    })
+    const other = list.filter(([e]) => !named.includes(e)).reduce((t, [, n]) => t + n, 0)
+    if (other > 0) parts.push({ key: 'other', n: other, slot: -1 })
+    if (earlier > 0) parts.push({ key: 'earlier', n: earlier, slot: -2 })
+
+    return { label, total: parts.reduce((t, p) => t + p.n, 0), parts }
+  }
+
+  return {
+    named,
+    rows: [row('This chat', v.byExt, 0), row('Today', v.langToday, v.langEarlierToday), row('All time', v.langLife, v.langEarlierLife)],
+  }
 }
