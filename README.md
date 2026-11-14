@@ -53,7 +53,7 @@ Clawd's wardrobe (on "auto" he picks one a day, some days none, and a nightcap a
 
 ![Every outfit](docs/images/outfits.svg)
 
-**A side pane** with the details: Clawd's level, this chat's split of code, comments and blank lines, two rings of code lines by model (today and all time), the last 4 weeks as a heat strip with your streak, the chats writing right now, file types, the biggest files, and badges. It can sit on the app's own background or a color of your choice, and every section can be switched off.
+**A side pane** with the details: Clawd's level, this chat's split of code, comments and blank lines, two rings of code lines by model (today and all time), the last 4 weeks as a heat strip with your streak, the chats writing right now, code lines by file type (this chat, today and all time, with Cloud and your other computers added in), the biggest files, and badges. It can sit on the app's own background or a color of your choice, and every section can be switched off.
 
 | App background | Night background |
 |---|---|
@@ -176,6 +176,9 @@ Most of these are also buttons and pickers at the bottom of the pane (behind a S
 **"How much has Claude written today?"**
 The band's first number is today's code lines across every open chat. Run `/linecount` for the split of code, comments and blank lines.
 
+**"What languages has Claude been writing?"**
+The pane's Languages section has a bar each for this chat, today and all time, and a table of code lines per file type. Your five biggest types get their own color; the rest show as "other".
+
 **"Which model wrote most of it?"**
 Open the pane: the two rings show code lines by model, today and all time.
 
@@ -200,7 +203,7 @@ Set up the two-computer count below; `/linecount computers` then shows both, eac
 
 - Only Claude's Write and Edit actions are counted; code made by shell commands is not.
 - Blank lines are never counted. Comments are told apart by file type, which is a good guess rather than a perfect one.
-- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on; older lines show as "earlier". A subagent's lines count under its chat's model.
+- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on, and lines by file type from version 0.3.0 on; older lines show as "earlier" (a chat still open when you update keeps its file types). A subagent's lines count under its chat's model.
 - Totals live on each computer, in Claude Code's own plugin store.
 
 ### Two or more computers (optional)
@@ -222,7 +225,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01...
 ```
 
-Every 5 minutes one open chat asks git, on this computer, for commits carrying a `Claude-Session: https://claude.ai/code/session_` line that it has not read yet. It counts their added lines with the same rules as everything else and shows them as a computer called **Cloud**. The commit's time gives the day and hour, and the `Co-Authored-By` line gives the model for the rings. With `/linecount count this` the Cloud row is listed but not added in.
+Every 5 minutes one open chat asks git, on this computer, for commits carrying a `Claude-Session: https://claude.ai/code/session_` line that it has not read yet. It counts their added lines with the same rules as everything else and shows them as a computer called **Cloud**. The commit's time gives the day and hour, the `Co-Authored-By` line gives the model for the rings, and the file names give the file types for the Languages section. With `/linecount count this` the Cloud row is listed but not added in.
 
 Which repos are read (`/linecount cloud all|picked|off`):
 
