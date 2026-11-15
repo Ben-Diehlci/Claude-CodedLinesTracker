@@ -32,6 +32,9 @@ export type PeerFile = {
   hours: number[]
   modelsToday: Record<string, number>
   modelsLife: Record<string, number>
+  /** Code lines per file extension (absent in files from before v0.3.0). */
+  extsToday?: Record<string, number>
+  extsLife?: Record<string, number>
 }
 
 export const toPeerFile = (id: string, name: string, now: number, t: Totals): PeerFile => ({
@@ -46,6 +49,8 @@ export const toPeerFile = (id: string, name: string, now: number, t: Totals): Pe
   hours: t.hours,
   modelsToday: t.modelsToday,
   modelsLife: t.modelsLife,
+  extsToday: t.extsToday,
+  extsLife: t.extsLife,
 })
 
 /** A file that reads as a PeerFile, else undefined (half-synced or foreign files are ignored). */
@@ -107,18 +112,22 @@ export const mergePeers = (own: Totals, ownId: string, ownName: string, peers: P
   const hours = own.hours.slice()
   let modelsToday = own.modelsToday
   let modelsLife = own.modelsLife
+  let extsToday = own.extsToday
+  let extsLife = own.extsLife
   for (const p of others) {
     life = addC(life, p.life)
     for (const [d, c] of Object.entries(p.days)) days[d] = addC(days[d] ?? EMPTY, c)
     modelsLife = addMap(modelsLife, p.modelsLife)
+    extsLife = addMap(extsLife, p.extsLife ?? {})
     if (p.d === today) {
       todayC = addC(todayC, p.today)
       p.hours.forEach((n, i) => (hours[i] = (hours[i] ?? 0) + n))
       modelsToday = addMap(modelsToday, p.modelsToday)
+      extsToday = addMap(extsToday, p.extsToday ?? {})
     }
   }
 
-  return { ...own, life, today: todayC, days, hours, modelsToday, modelsLife, machines }
+  return { ...own, life, today: todayC, days, hours, modelsToday, modelsLife, extsToday, extsLife, machines }
 }
 
 /** "now" within ten minutes of a write, else the clock time (or the day, for an older one). */

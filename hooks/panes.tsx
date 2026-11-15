@@ -4,7 +4,7 @@ import { pack } from './clawd'
 import { goalBar, heatStripCells } from './draw'
 import { seenLabel } from './peers'
 import { PANE_SVG, setMode } from './panesvg'
-import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt } from './model'
+import { BACKGROUNDS, HEAT_WEEKS, OUTFIT_CHOICES, SECTIONS, backgroundOf, fmt, langRows } from './model'
 import type { View } from './model'
 import { CLAY, SAND } from './styles/common'
 import type { Kit } from './styles/common'
@@ -163,22 +163,34 @@ const sections: Record<string, Section> = {
 
   languages: ({ kit, v }) => {
     const { Box, Text } = kit.ui
-    const total = v.byExt.reduce((n, [, c]) => n + c, 0)
-    const cells = 30
+    const { named, rows } = langRows(v)
+    const cells = 24
+    const color = (slot: number) => (slot >= 0 ? LANG_COLORS[slot % LANG_COLORS.length] : undefined)
+    const keys = [...named.map((key, slot) => ({ key, slot })), { key: 'other', slot: -1 }, { key: 'earlier', slot: -2 }].filter(k =>
+      rows.some(r => r.parts.some(p => p.key === k.key)),
+    )
+    const num = (n: number) => (n ? fmt(n) : '-').padStart(9)
 
     return (
       <Box flexDirection="column">
         <Text color={SAND} bold>LANGUAGES</Text>
-        <Text>
-          {v.byExt.map(([, n], i) => (
-            <Text color={LANG_COLORS[i % LANG_COLORS.length]}>{bar(n, total, cells)}</Text>
-          ))}
-        </Text>
-        <Text>
-          {v.byExt.map(([ext, n], i) => (
-            <Text><Text color={LANG_COLORS[i % LANG_COLORS.length]}>■</Text><Text dimColor>{` .${ext} ${fmt(n)}  `}</Text></Text>
-          ))}
-        </Text>
+        {rows.map(r => (
+          <Text>
+            <Text dimColor>{r.label.padEnd(10)}</Text>
+            {r.parts.map(p => (
+              <Text color={color(p.slot)} dimColor={p.slot < 0}>{bar(p.n, r.total, cells)}</Text>
+            ))}
+            <Text dimColor>{` ${fmt(r.total)}`}</Text>
+          </Text>
+        ))}
+        {keys.length === 0 ? <Text dimColor>nothing written yet</Text> : <Text dimColor>{`${''.padEnd(12)}${'chat'.padStart(9)}${'today'.padStart(9)}${'all time'.padStart(9)}`}</Text>}
+        {keys.map(k => (
+          <Text>
+            <Text color={color(k.slot)} dimColor={k.slot < 0}>■</Text>
+            <Text>{` ${(k.slot >= 0 ? `.${k.key}` : k.key).slice(0, 10).padEnd(10)}`}</Text>
+            <Text dimColor>{rows.map(r => num(r.parts.find(p => p.key === k.key)?.n ?? 0)).join('')}</Text>
+          </Text>
+        ))}
       </Box>
     )
   },
