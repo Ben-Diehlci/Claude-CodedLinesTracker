@@ -535,7 +535,8 @@ test('the day\'s first chat marks the morning once; later chats that day keep it
   expect(m.get('morning')).toEqual({ d: key, at: T0 - 5000 })
 })
 
-test('the desktop band stays under the app\'s 128 KB Svg limit with every outfit, scene and milestone at once', async ($, on) => {
+// It draws the band 192 times, 30 s apart on the mock clock: slower machines need more than the default 5 s.
+test('the desktop band stays under the app\'s 128 KB Svg limit with every outfit, scene and milestone at once', { timeoutMs: 30_000 }, async ($, on) => {
   stubs(on)
   memory(on)
   const clock = mock.clock(on, { now: T0 })
