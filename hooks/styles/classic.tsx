@@ -86,17 +86,23 @@ export const classic: Design = {
       [' lines with comments', 'mu', false],
       ...(chip ? ([[chip, 'fl', true]] as [string, string, boolean][]) : []),
     ])
-    const b = line(x, 36, [
+    const base: [string, string, boolean][] = [
       [multi ? 'all sessions today ' : 'today ', 'mu', false],
       [fmt(v.today.code), 'fg', true],
       ['  all time ', 'mu', false],
       [fmt(v.life.code), 'fg', true],
-      ...(v.machines.length > 1
-        ? (v.machines.map(m => [`  ● ${machineLabel(m)}`, MACHINE_CLS[m.slot % 4], true]) as [string, string, boolean][])
+    ]
+    // Each computer's chip, as many as fit the band; on a narrow band they drop to shorter "● 410" chips.
+    const chips = (short: boolean) =>
+      v.machines.map(m => [short ? `  ● ${fmt(m.today)}` : `  ● ${machineLabel(m)}`, MACHINE_CLS[m.slot % 4], true] as [string, string, boolean])
+    const fits = (parts: [string, string, boolean][]) => line(x, 36, parts).end <= w - 8
+    const extra: [string, string, boolean][] =
+      v.machines.length > 1
+        ? fits([...base, ...chips(false)]) ? chips(false) : chips(true)
         : multi
-          ? ([[`  ${v.sessions} sessions active`, 'mu', false]] as [string, string, boolean][])
-          : []),
-    ])
+          ? [[`  ${v.sessions} sessions active`, 'mu', false]]
+          : []
+    const b = line(x, 36, [...base, ...extra])
     inner += a.o + b.o
     const sx = Math.max(a.end, b.end) + 16
     const room = Math.min(900, w - 8 - sx)

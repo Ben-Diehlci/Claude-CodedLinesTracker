@@ -34,12 +34,15 @@ export const arcade: Design = {
     blocks.push(number('SESSION LINES', fmt(v.session.code), 'cl'))
     blocks.push(number('LINES TODAY', fmt(v.today.code), 'sa'))
     if (v.machines.length > 1) {
-      // One colored line per Mac under the tag.
+      // One colored line per computer under the tag (three fit: closer and smaller than two).
+      const ms = v.machines.slice(0, 3)
+      const size = ms.length > 2 ? 11 : 12
+      const step = ms.length > 2 ? 12 : 15
       blocks.push({
-        width: Math.max(est('TODAY BY MAC', 10, true) + 15, ...v.machines.map(m => est(`● ${machineLabel(m)}`, 12, true))) + 22,
+        width: Math.max(est('TODAY BY COMPUTER', 10, true) + 20, ...ms.map(m => est(`● ${machineLabel(m)}`, size, true))) + 22,
         draw: bx =>
-          tag(bx, 'TODAY BY MAC') +
-          v.machines.slice(0, 2).map((m, i) => text(bx, 35 + i * 15, `● ${machineLabel(m)}`, { cls: MACHINE_CLS[m.slot % 4], size: 12, bold: true })).join(''),
+          tag(bx, 'TODAY BY COMPUTER') +
+          ms.map((m, i) => text(bx, 34 + i * step, `● ${machineLabel(m)}`, { cls: MACHINE_CLS[m.slot % 4], size, bold: true })).join(''),
       })
     }
     blocks.push(number('HI-SCORE DAY', fmt(hi), beating ? 'fl' : 'go'))

@@ -3,7 +3,7 @@
 import { clawdBody, canvasH } from './clawd'
 import { donut, est, heatStrip, rect, svgDoc, text } from './draw'
 import type { Mode } from './draw'
-import { HEAT_WEEKS, fmt, langRows, modelColor } from './model'
+import { HEAT_WEEKS, fmt, langRows, modelColor, modelShades } from './model'
 import { seenLabel } from './peers'
 import type { View } from './model'
 
@@ -46,30 +46,35 @@ export const headerSvg = (v: View, w: number): Piece => {
 // Caption size: 11 px, smaller when the words would run past the room.
 const fit = (s: string, room: number): number => Math.max(9, Math.min(11, Math.floor((room / (s.length * 0.56)) * 10) / 10))
 
-/** A ring card's key: a dot and "Name 1,234" per slice, wrapping inside `room`; returns markup and its rows. */
+/**
+ * A ring card's key: a dot and "Name 1,234" per slice, in lined-up columns (as many as fit `room`, all
+ * as wide as the widest item), filled row by row; returns markup and its rows.
+ */
 const legend = (x: number, y: number, room: number, items: [string, number, string][]): { s: string; rows: number } => {
   let s = ''
-  let cx = 0
+  const labels = items.map(([name, n]) => `${name} ${fmt(n)}`)
+  // One type size for the whole key: smaller only when the widest item alone would run past the card's edge.
+  const widest = labels.reduce((a, l) => (l.length > a.length ? l : a), '')
+  const size = fit(widest, room - 10)
+  const colW = Math.max(...labels.map(l => 10 + est(l, size) + 12), 1)
+  const cols = Math.max(1, Math.floor((room + 12) / colW))
   let row = 0
-  for (const [name, n, fill] of items) {
-    const label = `${name} ${fmt(n)}`
-    // Smaller type when one item alone would run past the card's edge.
-    const size = fit(label, room - 10)
-    const iw = 10 + est(label, size) + 10
-    if (cx > 0 && cx + iw > room) {
-      cx = 0
-      row++
-    }
-    s += `<circle cx="${x + cx + 3.5}" cy="${y + row * 14 - 3.5}" r="3.5" class="${fill}"/>` + text(x + cx + 10, y + row * 14, label, { cls: 'mu', size })
-    cx += iw
-  }
+  items.forEach(([, , fill], i) => {
+    const cx = (i % cols) * colW
+    row = Math.floor(i / cols)
+    s += `<circle cx="${x + cx + 3.5}" cy="${y + row * 14 - 3.5}" r="3.5" class="${fill}"/>` + text(x + cx + 10, y + row * 14, labels[i] ?? '', { cls: 'mu', size })
+  })
 
   return { s, rows: row + 1 }
 }
 
 /** Slices for a model ring: the four biggest models, the rest as "Other", then the lines from before tracking. */
-const slices = (models: [string, number][], earlier: number, earlierName: string): [string, number, string, string][] => {
-  const named = models.slice(0, 4).map(([m, n]) => [m, n, modelColor(m).fill, modelColor(m).stroke] as [string, number, string, string])
+const slices = (models: [string, number][], earlier: number, earlierName: string, shades: Map<string, number>): [string, number, string, string][] => {
+  const named = models.slice(0, 4).map(([m, n]) => {
+    const c = modelColor(m, shades.get(m) ?? 0)
+
+    return [m, n, c.fill, c.stroke] as [string, number, string, string]
+  })
   const rest = models.slice(4).reduce((t, [, n]) => t + n, 0)
   if (rest > 0) named.push(['Other', rest, 'pk', 'ps'])
   if (earlier > 0) named.push([earlierName, earlier, 'hf', 'hs'])
@@ -84,9 +89,11 @@ export const ringsSvg = (v: View, w: number): Piece => {
   const stacked = (w - 10) / 2 < 170
   const cw = stacked ? Math.min(320, w) : Math.min(320, (w - 10) / 2)
   const room = cw - 72
+  // One shade per model, worked out from both cards so a model looks the same on each.
+  const shades = modelShades([...v.modelsLife, ...v.modelsToday].map(([m]) => m))
   const cards = [
-    { big: v.today.code, cap: 'lines today, by model', sl: slices(v.modelsToday, v.earlierToday, 'earlier') },
-    { big: v.life.code, cap: 'lines all time, by model', sl: slices(v.modelsLife, v.earlierLife, 'earlier') },
+    { big: v.today.code, cap: 'lines today, by model', sl: slices(v.modelsToday, v.earlierToday, 'earlier', shades) },
+    { big: v.life.code, cap: 'lines all time, by model', sl: slices(v.modelsLife, v.earlierLife, 'earlier', shades) },
   ].map(c => ({ ...c, key: legend(0, 0, room, c.sl.map(([n, k, f]) => [n, k, f])) }))
   const ch = Math.max(64, 44 + Math.max(...cards.map(c => c.key.rows)) * 14)
   const h = stacked ? 2 * ch + 8 : ch
@@ -160,7 +167,7 @@ export const computersSvg = (v: View, w: number): Piece => {
   const rh = 21
   const max = Math.max(1, ...ms.map(m => m.today))
   const { barX, barW } = barsFor(w)
-  let s = text(0, 10, v.countBoth ? 'COMPUTERS (BOTH COUNTED)' : 'COMPUTERS (THIS ONE COUNTED)', TAG)
+  let s = text(0, 10, v.countBoth ? `COMPUTERS (${ms.length > 2 ? 'ALL' : 'BOTH'} COUNTED)` : 'COMPUTERS (THIS ONE COUNTED)', TAG)
   ms.forEach((m, i) => {
     const y = 16 + i * rh + rh / 2
     const cls = MACHINE_FILL[m.slot % 4]
@@ -172,18 +179,33 @@ export const computersSvg = (v: View, w: number): Piece => {
   const y2 = 16 + ms.length * rh + 6
   const total = Math.max(1, ms.reduce((n, m) => n + m.life, 0))
   s += text(0, y2 + 10, 'ALL TIME', TAG)
+  // One bar split by computer, each part with that computer's all-time number written inside it
+  // (left out when the part is too narrow for it; the total sits at the right).
   const bw = Math.max(60, w - 80)
+  const bh = 16
+  s += `<clipPath id="cpall"><rect x="0" y="${y2 + 16}" width="${Math.round(bw)}" height="${bh}" rx="4"/></clipPath><g clip-path="url(#cpall)">`
   let x = 0
-  for (const m of ms) {
-    const mw = bw * (m.life / total)
-    s += rect(x, y2 + 16, mw, 8, MACHINE_FILL[m.slot % 4], 0)
+  let inside = ''
+  const widths = partWidths(ms.map(m => m.life), ms.map(m => est(fmt(m.life), 11, true) + 10), bw)
+  ms.forEach((m, i) => {
+    const mw = widths[i] ?? 0
+    s += rect(x, y2 + 16, mw, bh, MACHINE_FILL[m.slot % 4], 0)
+    const n = fmt(m.life)
+    // Light text on the darker fills, dark text on sand (white on sand is too faint).
+    const ink = MACHINE_FILL[m.slot % 4] === 'sa' ? 'id' : 'ib'
+    if (est(n, 11, true) + 10 <= mw) inside += text(x + mw / 2, y2 + 28, n, { cls: ink, size: 11, bold: true, anchor: 'middle' })
     x += mw
-  }
-  s += text(w, y2 + 24, fmt(total), { cls: 'mu', size: 13, anchor: 'end' })
-  const seen = ms.filter(m => !m.mine).map(m => `${m.name}: ${seenLabel(m, v.now)}`).join(', ')
-  s += text(0, y2 + 42, `Lines today per computer. Last seen: ${seen}`, { cls: 'mu', size: 11 })
+  })
+  s += `</g>${inside}`
+  s += text(w, y2 + 29, fmt(total), { cls: 'mu', size: 13, anchor: 'end' })
+  const seen = ms.filter(m => !m.mine).map(m => {
+    const l = seenLabel(m, v.now)
 
-  return piece(w, y2 + 50, s, `Computers: ${ms.map(m => `${m.name} ${fmt(m.today)} today, ${fmt(m.life)} all time`).join('; ')}`)
+    return l === 'now' ? `${m.name} up to date` : `${m.name} last seen ${l}`
+  })
+  s += text(0, y2 + 50, fitTo(`Rows: lines today. ${seen.join(', ')}`, w, 11), { cls: 'mu', size: 11 })
+
+  return piece(w, y2 + 58, s, `Computers: ${ms.map(m => `${m.name} ${fmt(m.today)} today, ${fmt(m.life)} all time`).join('; ')}`)
 }
 
 /** Row bars grow with the pane (a quarter of it, 70 to 240 px), ending 52 px before the number at the right edge. */
@@ -195,9 +217,45 @@ const barsFor = (w: number): { barX: number; barW: number } => {
 
 const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
 
-/** A Languages part's fill: its type's color, or muted grey for "other" and fainter for "earlier". */
+/**
+ * Widths of a split bar: each part in proportion to its value, but a small part is widened to fit its
+ * number (`need`), taken from the bigger parts. Falls back to plain proportions when the numbers cannot all fit.
+ */
+export const partWidths = (vals: number[], need: number[], total: number): number[] => {
+  const sum = Math.max(1, vals.reduce((a, b) => a + b, 0))
+  const plain = vals.map(v => (total * v) / sum)
+  if (need.reduce((a, b) => a + b, 0) > total) return plain
+  const fixed = new Set<number>()
+  for (let round = 0; round < vals.length; round++) {
+    const free = total - [...fixed].reduce((a, i) => a + (need[i] ?? 0), 0)
+    const rest = Math.max(1, vals.reduce((a, v, i) => (fixed.has(i) ? a : a + v), 0))
+    const out = vals.map((v, i) => (fixed.has(i) ? (need[i] ?? 0) : (free * v) / rest))
+    const short = out.findIndex((w, i) => !fixed.has(i) && w < (need[i] ?? 0))
+    if (short < 0) return out
+    fixed.add(short)
+  }
+
+  return plain
+}
+
+/** Cuts a line with "…" until it fits w px at that font size. */
+const fitTo = (s: string, w: number, size: number): string => {
+  if (est(s, size) <= w) return s
+  let t = s
+  while (t.length > 1 && est(t + '…', size) > w) t = t.slice(0, -1)
+
+  return t.trimEnd() + '…'
+}
+
+/**
+ * A Languages part's fill: its type's color; "other types" a full muted grey, "older, no type" the same grey
+ * at half strength (the old .55 and .25 were too faint to tell apart on dark).
+ */
 const langFill = (slot: number): [string, string] =>
-  slot >= 0 ? [LANG[slot % LANG.length] ?? 'cf', ''] : ['mu', slot === -1 ? 'opacity=".55"' : 'opacity=".25"']
+  slot >= 0 ? [LANG[slot % LANG.length] ?? 'cf', ''] : ['mu', slot === -1 ? '' : 'opacity=".5"']
+
+/** What the key says for each Languages entry. */
+const langLabel = (key: string, slot: number): string => (slot >= 0 ? `.${key}` : slot === -1 ? 'other types' : 'older, no type')
 
 /** Code by file type: a stacked bar each for this chat, today and all time, then a table of the numbers. */
 export const languagesSvg = (v: View, w: number): Piece => {
@@ -235,13 +293,13 @@ export const languagesSvg = (v: View, w: number): Piece => {
     y += 17
     const [cls, extra] = langFill(k.slot)
     s += rect(0, y - 8, 8, 8, cls, 2, extra)
-    s += text(14, y, clip(k.slot >= 0 ? `.${k.key}` : k.key, Math.floor((w - 150) / 7)), { cls: 'fg', size: 12 })
+    s += text(14, y, clip(langLabel(k.key, k.slot), Math.floor((w - 150) / 7)), { cls: 'fg', size: 12 })
     rows.forEach((r, i) => {
       const n = r.parts.find(p => p.key === k.key)?.n ?? 0
       s += text(cols[i] ?? w, y, n ? fmt(n) : '–', { cls: 'mu', size: 12, anchor: 'end' })
     })
   }
-  const alt = rows.map(r => `${r.label.toLowerCase()} ${r.parts.map(p => `${p.slot >= 0 ? '.' : ''}${p.key} ${fmt(p.n)}`).join(', ') || 'none'}`).join('; ')
+  const alt = rows.map(r => `${r.label.toLowerCase()} ${r.parts.map(p => `${langLabel(p.key, p.slot)} ${fmt(p.n)}`).join(', ') || 'none'}`).join('; ')
 
   return piece(w, y + 6, s, `Languages: ${alt}`)
 }

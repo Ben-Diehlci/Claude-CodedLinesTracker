@@ -67,15 +67,48 @@ export const modelName = (id: string): string => {
   return m[2] ? `${fam} ${m[2]}${m[3] ? '.' + m[3] : ''}` : fam
 }
 
-/** Ring and key colors (stroke class, fill class) by model family; "earlier" lines are the hairline grey. */
-export const modelColor = (name: string): { stroke: string; fill: string } => {
-  const f = name.split(' ')[0]
-  if (f === 'Opus') return { stroke: 'cs', fill: 'cf' }
-  if (f === 'Sonnet') return { stroke: 'ss', fill: 'sa' }
-  if (f === 'Haiku') return { stroke: 'ls', fill: 'fl' }
-  if (f === 'Fable') return { stroke: 'bs', fill: 'bl' }
+/** A model family's letter in the shade classes (draw.ts SHADES): Opus clay, Sonnet sand, Haiku green, Fable blue. */
+const FAMILY: Record<string, string> = { Opus: 'c', Sonnet: 's', Haiku: 'l', Fable: 'b' }
+
+/**
+ * Ring and key colors (stroke class, fill class) by model: the family's color, and for `shade` 1-3 a lighter,
+ * darker or lightest shade of it, so two versions of one family can be told apart. "earlier" is the hairline grey.
+ */
+export const modelColor = (name: string, shade = 0): { stroke: string; fill: string } => {
+  const fam = FAMILY[name.split(' ')[0] ?? '']
+  if (fam && shade > 0) return { stroke: `ms-${fam}${Math.min(3, shade)}`, fill: `mf-${fam}${Math.min(3, shade)}` }
+  if (fam === 'c') return { stroke: 'cs', fill: 'cf' }
+  if (fam === 's') return { stroke: 'ss', fill: 'sa' }
+  if (fam === 'l') return { stroke: 'ls', fill: 'fl' }
+  if (fam === 'b') return { stroke: 'bs', fill: 'bl' }
 
   return { stroke: 'ps', fill: 'pk' }
+}
+
+/**
+ * Each model's shade within its family: the newest version 0 (the family color), the next 1, 2, 3.
+ * Give it every model name shown, so a model keeps one shade on both ring cards.
+ */
+export const modelShades = (names: string[]): Map<string, number> => {
+  const ver = (n: string) => (n.split(' ')[1] ?? '').split('.').map(Number)
+  const newer = (a: string, b: string) => {
+    const [x, y] = [ver(a), ver(b)]
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const d = (y[i] || 0) - (x[i] || 0)
+      if (d) return d
+    }
+
+    return 0
+  }
+  const out = new Map<string, number>()
+  const families = new Map<string, string[]>()
+  for (const n of new Set(names)) {
+    const f = n.split(' ')[0] ?? ''
+    families.set(f, [...(families.get(f) ?? []), n])
+  }
+  for (const list of families.values()) list.sort(newer).forEach((n, i) => out.set(n, i))
+
+  return out
 }
 
 export const fmt = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')

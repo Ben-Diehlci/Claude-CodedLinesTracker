@@ -1,9 +1,28 @@
 import { expect, test } from 'claude-code/testing'
 
 import { canvasH, clawdBody, grid, LOOP_MS, mark, OUTFITS, TRICKS } from './clawd'
-import { badgesOf, bestDay, heat, langRows, levelOf, mergePrefs, modelName, pickOutfit, streaks } from './model'
+import { badgesOf, bestDay, heat, langRows, levelOf, mergePrefs, modelColor, modelName, modelShades, pickOutfit, streaks } from './model'
+
+import { partWidths } from './panesvg'
 
 const c = (n: number) => ({ all: n, code: n, comments: 0, blank: 0 })
+
+test('every model gets its own shade: the newest of a family keeps the family color', () => {
+  const s = modelShades(['Fable 5.1', 'Opus 5.5', 'Fable 5.2', 'Sonnet 5.5', 'Fable 4.10'])
+  expect([s.get('Fable 5.2'), s.get('Fable 5.1'), s.get('Fable 4.10'), s.get('Opus 5.5')]).toEqual([0, 1, 2, 0])
+  expect(modelColor('Fable 5.2', 0).fill).toBe('bl')
+  expect(modelColor('Fable 5.1', 1).fill).toBe('mf-b1')
+  expect(modelColor('Fable 5.1', 1).fill).not.toBe(modelColor('Fable 4.10', 2).fill)
+})
+
+test('the all-time bar widens a small computer part to fit its number, and adds up to the bar', () => {
+  const w = partWidths([18000, 8400, 300], [50, 40, 40], 300)
+  expect(Math.round(w.reduce((a, b) => a + b, 0))).toBe(300)
+  expect(w[2]).toBe(40)
+  expect(w[0]!).toBeGreaterThan(w[1]!)
+  // Numbers that cannot all fit: plain proportions.
+  expect(partWidths([1, 1], [200, 200], 300)).toEqual([150, 150])
+})
 const NOON = new Date(2026, 10, 3, 12).getTime()
 const day = (back: number) => {
   const d = new Date(NOON - back * 86_400_000)

@@ -44,14 +44,27 @@ export const card: Design = {
     const sw = Math.max(160, Math.min(900, w - tx - (side ? 170 : 14)))
     if (side) {
       const rows = rowsOf(v)
-      inner += dots(w - 16 - rows.length * 11 + 7, 17, rows)
+      // The session dots step aside while the "+N" chip would run into them (it shows only a few seconds).
+      const dotsX = w - 16 - rows.length * 11 + 7
+      if (!chip || x + est(chip, 12, true) + 16 < dotsX - 10) inner += dots(dotsX, 17, rows)
       if (v.machines.length > 1) {
-        // One colored line per Mac (lines today), then the all-time number for what is counted.
-        v.machines.slice(0, 2).forEach((m, i) => {
-          const label = `${m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name} ${fmt(m.today)}`
-          inner += text(w - 16, 35 + i * 16, label, { cls: MACHINE_CLS[m.slot % 4], size: 12, anchor: 'end', bold: true })
+        // One colored line per computer: its name and lines today, then its all-time number in muted text.
+        // Up to three computers (two Macs and Cloud); the lines draw closer and smaller with three.
+        const ms = v.machines.slice(0, 3)
+        const step = ms.length > 2 ? 11.5 : 16
+        const size = ms.length > 2 ? 11 : 12
+        const nameOf = (m: (typeof ms)[number]) => `${m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name} ${fmt(m.today)}`
+        // On a narrow band the all-time part is left out when the column would crowd the numbers on top.
+        const topEnd = x + (chip ? est(chip, 12, true) + 16 : 0)
+        const colW = Math.max(...ms.map(m => est(nameOf(m), size, true) + est(` · ${fmt(m.life)}`, size)))
+        const withLife = topEnd + 12 < w - 16 - colW
+        ms.forEach((m, i) => {
+          const y = 35 + i * step
+          const life = withLife ? ` · ${fmt(m.life)}` : ''
+          if (life) inner += text(w - 16, y, life, { cls: 'mu', size, anchor: 'end' })
+          inner += text(w - 16 - (life ? est(life, size) : 0), y, nameOf(m), { cls: MACHINE_CLS[m.slot % 4], size, anchor: 'end', bold: true })
         })
-        inner += text(w - 16, 66, `${fmt(v.life.code)} all time${v.countBoth ? ', both' : ''}`, { cls: 'mu', size: 12, anchor: 'end' })
+        inner += text(w - 16, 69, `${fmt(v.life.code)} all time${v.countBoth ? ', combined' : ', this computer'}`, { cls: 'mu', size: 11, anchor: 'end' })
       } else {
         inner += text(w - 16, 35, `${v.sessions} ${v.sessions === 1 ? 'session' : 'sessions'}`, { cls: 'mu', size: 12, anchor: 'end' })
         inner += text(w - 16, 51, `${fmt(v.session.code)} this session`, { cls: 'mu', size: 12, anchor: 'end' })

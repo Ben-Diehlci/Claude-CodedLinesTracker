@@ -203,7 +203,7 @@ Set up the two-computer count below; `/linecount computers` then shows both, eac
 
 - Only Claude's Write and Edit actions are counted; code made by shell commands is not.
 - Blank lines are never counted. Comments are told apart by file type, which is a good guess rather than a perfect one.
-- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on, and lines by file type from version 0.3.0 on; older lines show as "earlier" (a chat still open when you update keeps its file types). A subagent's lines count under its chat's model.
+- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on, and lines by file type from version 0.3.0 on; older lines show as "earlier" in the model rings and "older, no type" in Languages (a chat still open when you update keeps its file types). In Languages, "other types" adds up every type past the five biggest. A subagent's lines count under its chat's model.
 - Totals live on each computer, in Claude Code's own plugin store.
 
 ### Two or more computers (optional)
