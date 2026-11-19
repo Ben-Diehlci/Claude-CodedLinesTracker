@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { carried, heredocs, movesHistory, newLines, parseDiff, rewritten, tooMuch } from './disk'
+import { carried, heredocs, leftOut, movesHistory, newLines, parseDiff, rewritten, snapArgs, tooMuch } from './disk'
 
 const T0 = 1_700_000_000_000
 
@@ -61,6 +61,24 @@ test('a connector call that carries a code file', () => {
     { path: 'Assets/Scripts/Road.cs', text: 'class Road {\n}' },
   ])
   expect(carried({ tool: 'mcp__x__note', name: 'hello', text: 'a\nb' })).toEqual([])
+  expect(carried({ path: 'Assets/Data/Waves.json', contents: '{\n}' })).toEqual([{ path: 'Assets/Data/Waves.json', text: '{\n}' }])
+  expect(carried({ path: 'Assets/Scenes/Main.unity', contents: 'a\nb' })).toEqual([])
+  expect(carried({ name: 'v1.2', text: 'a\nb' })).toEqual([])
+})
+
+test('every file type is watched, but not the files an app writes by itself', () => {
+  expect(leftOut('Assets/Data/Waves.json')).toBe(false)
+  expect(leftOut('docs/notes.md')).toBe(false)
+  expect(leftOut('Assets/Scripts/Road.cs.meta')).toBe(true)
+  expect(leftOut('Assets/Prefabs/Gate.PREFAB')).toBe(true)
+  expect(leftOut('web/package-lock.json')).toBe(true)
+
+  const args = snapArgs('/repo')
+  expect(args.slice(3, 6)).toEqual(['sh', '/repo', '.'])
+  expect(args).toContain(':(exclude,icase)*.meta')
+
+  const snap = parseDiff(diff('data/waves.json', ['"count": 2']) + diff('web/yarn.lock', ['x 1.0']) + diff('a/Main.unity', ['m_Name: x']))
+  expect([...snap.add.keys()]).toEqual(['data/waves.json'])
 })
 
 // ---- Through the mod itself ----

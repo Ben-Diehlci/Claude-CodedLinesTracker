@@ -202,8 +202,8 @@ Set up the two-computer count below; `/linecount computers` then shows both, eac
 ## How counting works
 
 - A Write counts every line of the file it writes. An Edit counts the lines it changed: a rewritten line counts each time it is rewritten, unchanged lines around the change do not.
-- Everything else Claude does that can change files (a shell command, a terminal tab, a connector tool such as Unity's "create script") is counted by looking at the disk: in a git project the mod asks git, after each such action and at the end of each turn, which code lines are new, and counts those. Each line still goes under its own file type (.cs, .py ...) in Languages; the Details section only adds how many such changes there were ("N by shell or tool").
-  - Only code file types count this way, so generated files (a Unity scene, `.meta` files, pictures) stay out.
+- Everything else Claude does that can change files (a shell command, a terminal tab, a connector tool such as Unity's "create script") is counted by looking at the disk: in a git project the mod asks git, after each such action and at the end of each turn, which lines are new, and counts those. Each line still goes under its own file type (.cs, .py ...) in Languages; the Details section only adds how many such changes there were ("N by shell or tool").
+  - Every file type counts this way, as with a Write or Edit: code, `.json`, Markdown, config files. Left out are files an app writes by itself: Unity scenes, prefabs, materials and `.meta` files, Xcode project files and storyboards, pictures and `.svg` drawings, logs, lock files, minified files and source maps.
   - Moved lines count nothing. Git commands that bring lines back (pull, merge, stash, checkout, reset and the like) are not counted.
   - One action that brings in more than 40 files or 3,000 lines (a copied library, a project scaffold) is skipped.
   - Files you change by hand while Claude is in the middle of a turn are counted too; changes between turns are not.
@@ -269,7 +269,7 @@ What to know:
 | --- | --- |
 | No band above the prompt | Send a message: the band appears after the next one. If it still doesn't, type `/reload-plugins`, run `/linecount status on`, and check that `claude plugin list` shows `lines-tracker` as enabled. |
 | No pane | Type `/linecount`. To open it in every new chat, run `/linecount pane on`. |
-| Lines I know were written aren't counted | Outside a git project only Write, Edit, here-documents and connector tools that carry the file's text are seen. In a git project, files git ignores and file types that are not code are left out. |
+| Lines I know were written aren't counted | Outside a git project only Write, Edit, here-documents and connector tools that carry the file's text are seen. In a git project, files git ignores and files an app writes by itself (Unity scenes and `.meta` files, Xcode project files, pictures, logs, lock files) are left out. |
 | Lines by model say "earlier" | Those lines were counted before 2026-11-03, when model tracking began. |
 | The other computer doesn't show up | Run `/linecount sync <folder>` on that computer too, check the folder exists there and your sync tool is running, then `/linecount computers`. |
 | The band is cut off | Use `/linecount style compact`, or `auto`. |

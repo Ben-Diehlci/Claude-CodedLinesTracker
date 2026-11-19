@@ -2,7 +2,8 @@
 // tool such as Unity's "create script". Two ways to see them, both local and token-free:
 //   1. In a git repo: ask git which code lines are new on disk since the last look (parseDiff, newLines).
 //   2. Anywhere else: read the tool's own input (heredocs in a shell command, file text in a connector call).
-import { CODE_EXTS, extOf } from './count'
+import { isGenerated } from './cloud'
+import { extOf } from './count'
 
 /** Lines per file: text -> how many times it appears. Insertion order is the order git listed them. */
 export type Bag = Map<string, Map<string, number>>
@@ -14,9 +15,20 @@ export type Snap = { add: Bag; del: Bag }
 export const MAX_FILES = 40
 export const MAX_LINES = 3000
 
-/** File types the disk watch counts: code only, and not the kinds tools generate (pictures, data). */
-const GENERATED = new Set(['svg', 'xml'])
-export const WATCHED = CODE_EXTS.filter(x => !GENERATED.has(x))
+/**
+ * The disk watch counts every file type (code, json, markdown, config ...), as a Write or Edit does, except
+ * the kinds an app writes by itself: Unity scenes, prefabs and .meta files, Xcode project files, drawings, logs.
+ */
+export const MADE_BY_APPS = [
+  'svg', 'log',
+  'unity', 'prefab', 'meta', 'mat', 'asset', 'anim', 'controller', 'overridecontroller', 'physicmaterial',
+  'physicsmaterial2d', 'lighting', 'playable', 'mixer', 'rendertexture', 'spriteatlas', 'terrainlayer',
+  'pbxproj', 'xcscheme', 'xcworkspacedata', 'xcuserstate', 'storyboard', 'xib',
+]
+const APP_MADE = new Set(MADE_BY_APPS)
+
+/** True for a file the disk watch leaves out: made by an app, or a lock file, minified file or source map. */
+export const leftOut = (path: string): boolean => APP_MADE.has(extOf(path)) || isGenerated(path)
 
 const put = (bag: Bag, path: string, line: string, n = 1) => {
   let lines = bag.get(path)
@@ -26,7 +38,8 @@ const put = (bag: Bag, path: string, line: string, n = 1) => {
 
 /**
  * The script the mod runs (one process): the diff of tracked files against the last commit, then every
- * untracked, not ignored file as a diff against nothing. Arguments: the repo, then the path patterns.
+ * untracked, not ignored file as a diff against nothing. Arguments: the repo, then the path patterns
+ * (everything, less the app-made types; git prints no lines for a binary file).
  */
 export const SNAP_SCRIPT = [
   'cd "$1" || exit 1',
@@ -36,7 +49,7 @@ export const SNAP_SCRIPT = [
   'exit 0',
 ].join('\n')
 
-export const snapArgs = (repo: string): string[] => ['sh', '-c', SNAP_SCRIPT, 'sh', repo, ...WATCHED.map(x => `*.${x}`)]
+export const snapArgs = (repo: string): string[] => ['sh', '-c', SNAP_SCRIPT, 'sh', repo, '.', ...MADE_BY_APPS.map(x => `:(exclude,icase)*.${x}`)]
 
 /** Reads `git diff -U0` output into added and removed lines per file. Blank lines are left out. */
 export const parseDiff = (text: string): Snap => {
@@ -55,7 +68,7 @@ export const parseDiff = (text: string): Snap => {
     if (!inHunk) {
       if (line.startsWith('+++ ')) {
         const name = line.slice(4)
-        path = name.startsWith('b/') ? name.slice(2) : ''
+        path = name.startsWith('b/') && !leftOut(name) ? name.slice(2) : ''
       } else if (line.startsWith('@@')) {
         inHunk = true
       }
@@ -182,7 +195,7 @@ export const heredocs = (command: string): Written[] => {
 const PATH_KEY = /^(?:path|file_?path|file_?name|uri|name|target)$/i
 const TEXT_KEY = /^(?:contents?|text|code|source|script|body|new_?(?:string|source|text|content))$/i
 
-/** A connector (MCP) call that carries a code file: a path with a code file type beside its text. */
+/** A connector (MCP) call that carries a file: a path with a file type (not an app-made one) beside its text. */
 export const carried = (input: Record<string, unknown>): Written[] => {
   const out: Written[] = []
   const look = (o: Record<string, unknown>, deep: boolean) => {
@@ -190,7 +203,7 @@ export const carried = (input: Record<string, unknown>): Written[] => {
     let text = ''
     for (const [k, v] of Object.entries(o)) {
       if (typeof v === 'string') {
-        if (!path && PATH_KEY.test(k) && WATCHED.includes(extOf(v)) && /\.[A-Za-z0-9]+$/.test(v)) path = v
+        if (!path && PATH_KEY.test(k) && /\.[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*$/.test(v) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) && !leftOut(v)) path = v
         else if (!text && TEXT_KEY.test(k) && v.includes('\n')) text = v
       } else if (deep && v && typeof v === 'object' && !Array.isArray(v)) {
         look(v as Record<string, unknown>, false)
