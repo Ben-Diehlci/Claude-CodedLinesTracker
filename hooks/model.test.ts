@@ -116,17 +116,18 @@ test('new tricks: spin turns Clawd around, peek ducks him below the edge, sneeze
   for (const t of ['spin', 'peek', 'sneeze']) expect(Object.keys(TRICKS)).toContain(t)
 })
 
-test('languages: one color per type on every row, the sixth type on is "other", untracked lines "earlier"', () => {
+test('languages: this chat\'s and today\'s types are always named, eight at most, the rest "other", untracked lines "earlier"', () => {
   const { named, rows } = langRows({
-    byExt: [['ts', 40], ['md', 5]],
-    langToday: [['ts', 300], ['py', 100]],
-    langLife: [['py', 900], ['ts', 800], ['go', 50], ['rs', 40], ['sh', 30], ['md', 20], ['css', 10]],
+    byExt: [['cs', 40], ['md', 5]],
+    langToday: [['cs', 300], ['py', 100]],
+    langLife: [['py', 900], ['ts', 800], ['go', 50], ['rs', 40], ['sh', 30], ['md', 20], ['css', 10], ['cs', 9], ['js', 8], ['c', 7]],
     langEarlierToday: 0,
     langEarlierLife: 1000,
   })
-  expect(named).toEqual(['py', 'ts', 'go', 'rs', 'sh'])
+  // cs and md (this chat) and py (today) are in although five types are bigger all time; colors go in all-time order.
+  expect(named).toEqual(['py', 'ts', 'go', 'rs', 'sh', 'md', 'css', 'cs'])
   expect(rows.map(r => r.label)).toEqual(['This chat', 'Today', 'All time'])
-  expect(rows[0]!.parts).toEqual([{ key: 'ts', n: 40, slot: 1 }, { key: 'other', n: 5, slot: -1 }])
-  expect(rows[2]!.parts.slice(-2)).toEqual([{ key: 'other', n: 30, slot: -1 }, { key: 'earlier', n: 1000, slot: -2 }])
-  expect(rows[2]!.total).toBe(2850)
+  expect(rows[0]!.parts).toEqual([{ key: 'md', n: 5, slot: 5 }, { key: 'cs', n: 40, slot: 7 }])
+  expect(rows[2]!.parts.slice(-2)).toEqual([{ key: 'other', n: 15, slot: -1 }, { key: 'earlier', n: 1000, slot: -2 }])
+  expect(rows[2]!.total).toBe(2874)
 })

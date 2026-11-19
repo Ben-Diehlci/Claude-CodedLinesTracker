@@ -265,20 +265,25 @@ export type View = {
 }
 
 /** File types given their own color in the Languages section; the rest are "other". */
-export const LANG_SLOTS = 5
+export const LANG_SLOTS = 8
 
 export type LangPart = { key: string; n: number; slot: number }
 export type LangRow = { label: string; total: number; parts: LangPart[] }
 
 /**
- * The Languages section: one row each for this chat, today and all time. A type keeps one color on every
- * row (ranked by all time, then today, then this chat); types past the fifth are "other" (slot -1), and lines
- * from before per-type tracking are "earlier" (slot -2).
+ * The Languages section: one row each for this chat, today and all time. Up to eight types are named: this
+ * chat's first, then today's, then the biggest of all time, so a type being written now is always shown.
+ * A type keeps one color on every row (colors go in all-time order); the rest are "other" (slot -1), and
+ * lines from before per-type tracking are "earlier" (slot -2).
  */
 export const langRows = (v: Pick<View, 'byExt' | 'langToday' | 'langLife' | 'langEarlierToday' | 'langEarlierLife'>): { named: string[]; rows: LangRow[] } => {
-  const rank: string[] = []
-  for (const list of [v.langLife, v.langToday, v.byExt]) for (const [e, n] of list) if (n > 0 && !rank.includes(e)) rank.push(e)
-  const named = rank.slice(0, LANG_SLOTS)
+  const pick: string[] = []
+  for (const list of [v.byExt, v.langToday, v.langLife]) {
+    for (const [e, n] of [...list].sort((a, b) => b[1] - a[1])) if (n > 0 && !pick.includes(e)) pick.push(e)
+  }
+  const life = (e: string): number => v.langLife.find(x => x[0] === e)?.[1] ?? 0
+  const chosen = pick.slice(0, LANG_SLOTS)
+  const named = [...chosen].sort((a, b) => life(b) - life(a) || chosen.indexOf(a) - chosen.indexOf(b))
   const row = (label: string, list: [string, number][], earlier: number): LangRow => {
     const parts: LangPart[] = []
     named.forEach((key, slot) => {

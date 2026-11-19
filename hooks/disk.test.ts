@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { carried, heredocs, movesHistory, newLines, parseDiff, tooMuch } from './disk'
+import { carried, heredocs, movesHistory, newLines, parseDiff, rewritten, tooMuch } from './disk'
 
 const T0 = 1_700_000_000_000
 
@@ -83,7 +83,7 @@ const setup = (on: any, repo: string) => {
   on('fs.list', () => ({ value: [] }))
   on('process.run', (_: any, e: any) => {
     const ok = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (e.argv[0] === 'git' && e.argv.includes('--show-toplevel')) return repo ? ok(`${repo}\n`) : { value: { ...ok('').value, exitCode: 128 } }
+    if (e.argv[0] === 'git' && e.argv.includes('--show-toplevel')) return repo && e.argv[2].startsWith(repo) ? ok(`${repo}\n`) : { value: { ...ok('').value, exitCode: 128 } }
     if (e.argv[0] === 'sh') return ok(disk.text)
 
     return { value: { ...ok('').value, exitCode: 1 } }
@@ -155,4 +155,38 @@ test('outside a git repo a here-document and a connector file are counted from t
   expect(stats().total).toEqual({ all: 4, code: 3, comments: 1, blank: 0 })
   expect(stats().others).toBe(2)
   expect(Object.keys(stats().byFile)).toEqual(['/work/run.sh', '/work/Road.cs'])
+})
+
+test('a chat started in a spare folder and then moved into a project is watched there, under the project name', async ($, on) => {
+  const { disk, stats } = setup(on, '/repo')
+  let where = '/spares/spare-abc'
+  on('session.cwd', () => ({ value: where }))
+  on('tool.call', (_: any, e: any) => {
+    if (e.command === 'make-file') disk.text = diff('x.py', ['x = 1'], [], true)
+
+    return { result: {} }
+  })
+
+  await $.session.start({ cwd: '/spares/spare-abc', surface: 'desktop', isInteractive: true })
+  where = '/repo'
+  await $.tool.call({ tool: 'Bash', command: 'true' } as any)
+  await $.tool.call({ tool: 'Bash', command: 'make-file' } as any)
+
+  expect(stats().total.code).toBe(1)
+  expect(stats().byExt).toEqual({ py: 1 })
+})
+
+test('an Edit counts the lines it changed, not the unchanged lines around them', async ($, on) => {
+  expect(rewritten('a\nb\nc', 'a\nB\nc\nd')).toBe('B\nd')
+  expect(rewritten('x = 1', 'x = 1')).toBe('')
+
+  const { stats } = setup(on, '')
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/work', surface: 'desktop', isInteractive: true })
+  const edit = { tool: 'Edit', file_path: '/work/x.ts', old_string: 'const a = 1\nconst b = 2', new_string: 'const a = 1\nconst b = 3\nconst c = 4' }
+  await $.tool.call(edit as any)
+  await $.tool.call({ ...edit, old_string: 'const b = 3', new_string: 'const b = 5' } as any) // the same line, rewritten again
+
+  expect(stats().total.code).toBe(3)
+  expect(stats().edits).toBe(2)
 })

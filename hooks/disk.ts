@@ -133,6 +133,25 @@ export const pay = (paid: Bag, path: string, text: string) => {
   for (const line of text.split('\n')) if (line.trim() !== '') put(paid, path, line.endsWith('\r') ? line.slice(0, -1) : line)
 }
 
+/**
+ * What an Edit really wrote: the lines of the new text that the old text did not have. Unchanged lines
+ * repeated around the change count nothing; a line that was rewritten counts, every time it is rewritten.
+ */
+export const rewritten = (oldText: string, newText: string): string => {
+  const had = new Map<string, number>()
+  for (const line of oldText.split('\n')) had.set(line, (had.get(line) ?? 0) + 1)
+
+  return newText
+    .split('\n')
+    .filter(line => {
+      const n = had.get(line) ?? 0
+      if (n > 0) had.set(line, n - 1)
+
+      return n === 0
+    })
+    .join('\n')
+}
+
 /** Git commands that bring in lines nobody just wrote (another branch, a stash, a pull): look, do not count. */
 export const movesHistory = (command: string): boolean =>
   /\bgit\s+(?:-C\s+\S+\s+|-\S+\s+)*(?:pull|merge|rebase|stash|checkout|switch|restore|reset|cherry-pick|revert|apply|am|clone|worktree|submodule)\b/.test(command)

@@ -201,7 +201,7 @@ Set up the two-computer count below; `/linecount computers` then shows both, eac
 
 ## How counting works
 
-- Write and Edit actions are counted from the text Claude was writing.
+- A Write counts every line of the file it writes. An Edit counts the lines it changed: a rewritten line counts each time it is rewritten, unchanged lines around the change do not.
 - Everything else Claude does that can change files (a shell command, a terminal tab, a connector tool such as Unity's "create script") is counted by looking at the disk: in a git project the mod asks git, after each such action and at the end of each turn, which code lines are new, and counts those. Each line still goes under its own file type (.cs, .py ...) in Languages; the Details section only adds how many such changes there were ("N by shell or tool").
   - Only code file types count this way, so generated files (a Unity scene, `.meta` files, pictures) stay out.
   - Moved lines count nothing. Git commands that bring lines back (pull, merge, stash, checkout, reset and the like) are not counted.
@@ -209,7 +209,7 @@ Set up the two-computer count below; `/linecount computers` then shows both, eac
   - Files you change by hand while Claude is in the middle of a turn are counted too; changes between turns are not.
 - Outside a git project the disk cannot be asked, so only two cases are caught: a shell command that writes a file with a here-document, and a connector tool whose input carries the file's text.
 - Blank lines are never counted. Comments are told apart by file type, which is a good guess rather than a perfect one.
-- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on, and lines by file type from version 0.3.0 on; older lines show as "earlier" in the model rings and "older, no type" in Languages (a chat still open when you update keeps its file types). In Languages, "other types" adds up every type past the five biggest. A subagent's lines count under its chat's model.
+- Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on, and lines by file type from version 0.3.0 on; older lines show as "earlier" in the model rings and "older, no type" in Languages (a chat still open when you update keeps its file types). Languages names up to eight types: the ones written in this chat first, then today's, then the biggest of all time; "other types" adds up the rest. A subagent's lines count under its chat's model.
 - Totals live on each computer, in Claude Code's own plugin store.
 
 ### Two or more computers (optional)

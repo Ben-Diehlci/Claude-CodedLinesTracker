@@ -17,7 +17,7 @@ import type { Outfit } from './clawd'
 import { BATCH, CLOUD_MODES, FIND_MS, SCAN_MS, cloudTotals, listArgs, parseLog, samePath, showArgs, skipDir } from './cloud'
 import type { CloudCommit } from './cloud'
 import { countLines, extOf } from './count'
-import { carried, heredocs, movesHistory, newLines, parseDiff, pay, snapArgs, tooMuch } from './disk'
+import { carried, heredocs, movesHistory, newLines, parseDiff, pay, rewritten, snapArgs, tooMuch } from './disk'
 import type { Bag, Snap } from './disk'
 import { IDLE_MS, stageCells, stageLive } from './stage'
 import type { StageLive } from './stage'
@@ -314,6 +314,7 @@ const record = async ($: any, path: string, text: string, kind: Kind) => {
   const ext = extOf(path)
   const counts = countLines(text, ext)
   if (kind === 'others' && counts.all === 0) return
+  await whereNow($)
   const now = await $.clock.now()
 
   await update($, session, (s: Stats) => ({
@@ -337,7 +338,7 @@ const record = async ($: any, path: string, text: string, kind: Kind) => {
   ownCache = {
     t: now,
     w: now,
-    proj: own.proj || project,
+    proj: project !== 'session' ? project : own.proj || project,
     life: add(own.life, counts),
     days: keepDays({ ...own.days, [d]: add(own.days[d] ?? EMPTY, counts) }, KEEP_DAYS),
     hours: { d, v: hours },
@@ -376,7 +377,26 @@ let paid: Bag = new Map()
 // Looks run one after another, never two at once.
 let looking: Promise<void> = Promise.resolve()
 
+/**
+ * The folder the chat works in now. The desktop app starts chats ahead of time in a spare folder and moves
+ * them into the project when one is picked, so the folder given at session start can be the wrong one.
+ */
+const whereNow = async ($: any) => {
+  try {
+    const now = String((await $.session.cwd()) ?? '')
+    if (!now || now === cwd) return
+    cwd = now
+    project = cwd.split('/').filter(Boolean).pop() || 'session'
+    repo = undefined
+    base = undefined
+    paid = new Map()
+  } catch {
+    // No way to ask: keep the folder from session start.
+  }
+}
+
 const watchedRepo = async ($: any): Promise<string> => {
+  await whereNow($)
   if (repo !== undefined) return repo
   try {
     const r = await $.process.run(['git', ...(cwd ? ['-C', cwd] : []), 'rev-parse', '--show-toplevel'], { timeoutMs: 10_000 })
@@ -1096,7 +1116,7 @@ export const register: Register = on => {
     const a = e as any
     const direct: [string, string, Kind] | undefined =
       tool === 'Write' ? [a.file_path, a.content, 'writes']
-      : tool === 'Edit' ? [a.file_path, a.new_string, 'edits']
+      : tool === 'Edit' ? [a.file_path, rewritten(String(a.old_string ?? ''), String(a.new_string ?? '')), 'edits']
       : tool === 'NotebookEdit' ? [a.notebook_path, a.new_source ?? '', 'edits']
       : undefined
 

@@ -10,7 +10,7 @@ import type { View } from './model'
 export type Piece = { h: number; src: string; alt: string }
 
 const TAG = { cls: 'mu', size: 10, bold: true, spacing: 1.2 } as const
-const LANG = ['cf', 'sa', 'bl', 'fl', 'pk']
+const LANG = ['cf', 'sa', 'bl', 'fl', 'pk', 'go', 'tl', 'pu']
 
 // Set once per pane draw: light, dark, or following the app.
 let mode: Mode = 'auto'

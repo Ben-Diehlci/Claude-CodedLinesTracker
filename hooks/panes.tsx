@@ -13,7 +13,7 @@ import { DESIGNS, STYLE_CHOICES } from './styles'
 const BLUE = '#7A8CE0'
 const GREEN = '#7FB069'
 const PINK = '#E86A9A'
-const LANG_COLORS = [CLAY, SAND, BLUE, GREEN, PINK]
+const LANG_COLORS = [CLAY, SAND, BLUE, GREEN, PINK, '#E8B84A', '#5FC2C2', '#B08CE8']
 const MODEL_COLORS: Record<string, string> = { Opus: CLAY, Sonnet: SAND, Haiku: GREEN, Fable: BLUE }
 
 const bar = (n: number, max: number, width: number): string =>
