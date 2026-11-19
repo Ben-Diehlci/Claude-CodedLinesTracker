@@ -83,7 +83,7 @@ const sections: Record<string, Section> = {
           <Text color={SAND}>■</Text><Text dimColor>{` ${fmt(comments)} comments  `}</Text>
           <Text dimColor>{`░ ${fmt(blank)} blank, not counted`}</Text>
         </Text>
-        <Text>{`${v.files} files, ${v.writes} writes, ${v.edits} edits, ${fmt(Math.round(code / v.minutes))} code lines a minute`}</Text>
+        <Text>{`${v.files} files, ${v.writes} writes, ${v.edits} edits${v.others > 0 ? `, ${v.others} by shell or tool` : ''}, ${fmt(Math.round(code / v.minutes))} code lines a minute`}</Text>
       </Box>
     )
   },

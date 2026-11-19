@@ -13,6 +13,8 @@ export type Stats = {
   total: Counts
   writes: number
   edits: number
+  /** Changes found another way: a shell command, a terminal tab, a connector tool (absent in older stored stats). */
+  others?: number
   /** Code lines per file extension. */
   byExt: Record<string, number>
   /** All non-blank lines per file path. */

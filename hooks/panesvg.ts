@@ -377,7 +377,7 @@ export const detailsSvg = (v: View, w: number): Piece => {
     lx += iw + 12
   }
   const pace = Math.round(code / v.minutes)
-  const line = `${v.files} ${v.files === 1 ? 'file' : 'files'}, ${v.writes} ${v.writes === 1 ? 'write' : 'writes'}, ${v.edits} ${v.edits === 1 ? 'edit' : 'edits'}, ${fmt(pace)} code lines a minute`
+  const line = `${v.files} ${v.files === 1 ? 'file' : 'files'}, ${v.writes} ${v.writes === 1 ? 'write' : 'writes'}, ${v.edits} ${v.edits === 1 ? 'edit' : 'edits'}${v.others > 0 ? `, ${v.others} by shell or tool` : ''}, ${fmt(pace)} code lines a minute`
   s += text(0, ly + 29, line, { cls: 'fg', size: fit(line, w) })
   const h = ly + 39
 

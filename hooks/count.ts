@@ -20,6 +20,9 @@ const STYLES: Record<string, Style> = {
   html: HTML, htm: HTML, xml: HTML, svg: HTML, vue: HTML,
 }
 
+/** Every file type the counter knows as code (it can tell its comments apart). */
+export const CODE_EXTS: string[] = Object.keys(STYLES)
+
 export const extOf = (path: string): string => {
   const name = path.split('/').pop() ?? ''
   const dot = name.lastIndexOf('.')

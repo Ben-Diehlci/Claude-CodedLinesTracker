@@ -2,7 +2,7 @@
 
 **Count the lines of code Claude writes for you, with Clawd keeping you company while it does.**
 
-Lines Tracker is a mod for Claude Code (the terminal `claude` command, or the Code tab of the Claude desktop app). It adds a band above the prompt box with today's lines, this chat's lines and your all-time total, plus a side pane with the details. It uses **no model tokens**: it watches Claude's Write and Edit actions and counts the lines itself, on your computer. Blank lines are never counted, and every total is shown two ways: code only, and with comments.
+Lines Tracker is a mod for Claude Code (the terminal `claude` command, or the Code tab of the Claude desktop app). It adds a band above the prompt box with today's lines, this chat's lines and your all-time total, plus a side pane with the details. It uses **no model tokens**: it watches what Claude writes (its Write and Edit actions, and in a git project also shell commands, terminal tabs and connector tools) and counts the lines itself, on your computer. Blank lines are never counted, and every total is shown two ways: code only, and with comments.
 
 If you want to see how much Claude actually writes for you each day, or just like a small pixel crab cheering you on, this is for you.
 
@@ -201,7 +201,13 @@ Set up the two-computer count below; `/linecount computers` then shows both, eac
 
 ## How counting works
 
-- Only Claude's Write and Edit actions are counted; code made by shell commands is not.
+- Write and Edit actions are counted from the text Claude was writing.
+- Everything else Claude does that can change files (a shell command, a terminal tab, a connector tool such as Unity's "create script") is counted by looking at the disk: in a git project the mod asks git, after each such action and at the end of each turn, which code lines are new, and counts those. Each line still goes under its own file type (.cs, .py ...) in Languages; the Details section only adds how many such changes there were ("N by shell or tool").
+  - Only code file types count this way, so generated files (a Unity scene, `.meta` files, pictures) stay out.
+  - Moved lines count nothing. Git commands that bring lines back (pull, merge, stash, checkout, reset and the like) are not counted.
+  - One action that brings in more than 40 files or 3,000 lines (a copied library, a project scaffold) is skipped.
+  - Files you change by hand while Claude is in the middle of a turn are counted too; changes between turns are not.
+- Outside a git project the disk cannot be asked, so only two cases are caught: a shell command that writes a file with a here-document, and a connector tool whose input carries the file's text.
 - Blank lines are never counted. Comments are told apart by file type, which is a good guess rather than a perfect one.
 - Counting starts when the mod is installed. Lines by model are known from 2026-11-03 on, and lines by file type from version 0.3.0 on; older lines show as "earlier" in the model rings and "older, no type" in Languages (a chat still open when you update keeps its file types). In Languages, "other types" adds up every type past the five biggest. A subagent's lines count under its chat's model.
 - Totals live on each computer, in Claude Code's own plugin store.
@@ -263,7 +269,7 @@ What to know:
 | --- | --- |
 | No band above the prompt | Send a message: the band appears after the next one. If it still doesn't, type `/reload-plugins`, run `/linecount status on`, and check that `claude plugin list` shows `lines-tracker` as enabled. |
 | No pane | Type `/linecount`. To open it in every new chat, run `/linecount pane on`. |
-| Lines I know were written aren't counted | Only Write and Edit actions count. Files made by shell commands (for example a script that writes a file) are not. |
+| Lines I know were written aren't counted | Outside a git project only Write, Edit, here-documents and connector tools that carry the file's text are seen. In a git project, files git ignores and file types that are not code are left out. |
 | Lines by model say "earlier" | Those lines were counted before 2026-11-03, when model tracking began. |
 | The other computer doesn't show up | Run `/linecount sync <folder>` on that computer too, check the folder exists there and your sync tool is running, then `/linecount computers`. |
 | The band is cut off | Use `/linecount style compact`, or `auto`. |

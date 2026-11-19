@@ -251,6 +251,8 @@ export type View = {
   minutes: number
   writes: number
   edits: number
+  /** Changes made without Write or Edit (shell, terminal, connector tools). */
+  others: number
   byExt: [string, number][]
   byFile: [string, number][]
   /** Code lines by file type, biggest first: today and all time (every session; every computer with count both). */

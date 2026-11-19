@@ -17,6 +17,8 @@ import type { Outfit } from './clawd'
 import { BATCH, CLOUD_MODES, FIND_MS, SCAN_MS, cloudTotals, listArgs, parseLog, samePath, showArgs, skipDir } from './cloud'
 import type { CloudCommit } from './cloud'
 import { countLines, extOf } from './count'
+import { carried, heredocs, movesHistory, newLines, parseDiff, pay, snapArgs, tooMuch } from './disk'
+import type { Bag, Snap } from './disk'
 import { IDLE_MS, stageCells, stageLive } from './stage'
 import type { StageLive } from './stage'
 import {
@@ -306,16 +308,19 @@ const setPrefs = ($: any) => async (patch: Partial<Prefs>) => {
   await savePrefs($)
 }
 
-const record = async ($: any, path: string, text: string, kind: 'writes' | 'edits') => {
+type Kind = 'writes' | 'edits' | 'others'
+
+const record = async ($: any, path: string, text: string, kind: Kind) => {
   const ext = extOf(path)
   const counts = countLines(text, ext)
+  if (kind === 'others' && counts.all === 0) return
   const now = await $.clock.now()
 
   await update($, session, (s: Stats) => ({
     ...s,
     startedAt: s.startedAt || now,
     total: add(s.total, counts),
-    [kind]: s[kind] + 1,
+    [kind]: (s[kind] ?? 0) + 1,
     byExt: { ...s.byExt, [ext]: (s.byExt[ext] ?? 0) + counts.code },
     byFile: { ...s.byFile, [path]: (s.byFile[path] ?? 0) + counts.all },
   }))
@@ -356,6 +361,91 @@ const record = async ($: any, path: string, text: string, kind: 'writes' | 'edit
   await update($, pulse, (p: Pulse) => ({ at: now, n: counts.code, mile: crossed ? now : p.mile }))
 }
 
+// ---- Lines written without Write or Edit (see disk.ts) ----
+
+// Tools that never write a file: no look at the disk before or after them.
+const QUIET = new Set(['Read', 'Grep', 'Glob', 'ToolSearch', 'WebFetch', 'WebSearch', 'Agent', 'Task', 'Skill', 'AskUserQuestion', 'TodoWrite'])
+const quiet = (tool: string): boolean => QUIET.has(tool) || tool.startsWith('mcp__ccd_')
+
+// The repo the chat works in: undefined until looked up, '' when it is in none.
+let repo: string | undefined
+// What was uncommitted on disk at the last look; undefined before the first, or after a look that failed.
+let base: Snap | undefined
+// Lines a Write or Edit counted since the last look, so the look does not count them again.
+let paid: Bag = new Map()
+// Looks run one after another, never two at once.
+let looking: Promise<void> = Promise.resolve()
+
+const watchedRepo = async ($: any): Promise<string> => {
+  if (repo !== undefined) return repo
+  try {
+    const r = await $.process.run(['git', ...(cwd ? ['-C', cwd] : []), 'rev-parse', '--show-toplevel'], { timeoutMs: 10_000 })
+    repo = r.exitCode === 0 ? String(r.stdout).trim() : ''
+  } catch {
+    repo = ''
+  }
+
+  return repo as string
+}
+
+const snapshot = async ($: any, dir: string): Promise<Snap | undefined> => {
+  try {
+    const r = await $.process.run(snapArgs(dir), { timeoutMs: 20_000 })
+    if (r.exitCode !== 0 || r.isStdoutTruncated) return undefined
+
+    return parseDiff(r.stdout)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Looks at the repo's uncommitted lines. With `count`, the code lines that are new since the last look are
+ * recorded (as "other" changes); without, the look only becomes the new starting point.
+ */
+const look = ($: any, count: boolean): Promise<void> => {
+  looking = looking
+    .then(async () => {
+      const dir = await watchedRepo($)
+      if (!dir) return
+      const cur = await snapshot($, dir)
+      const prev = base
+      base = cur
+      const credit = paid
+      paid = new Map()
+      if (!count || !prev || !cur) return
+      const fresh = newLines(prev, cur, credit)
+      if (tooMuch(fresh)) return
+      for (const [path, lines] of Object.entries(fresh)) await record($, `${dir}/${path}`, lines.join('\n'), 'others')
+    })
+    .catch(() => {})
+
+  return looking
+}
+
+/** The first look, taken before a tool runs when there is none yet, so that tool's lines have a "before". */
+const ready = async ($: any) => {
+  if (base === undefined && (await watchedRepo($))) await look($, false)
+}
+
+const absolute = (path: string): string => (path.startsWith('/') ? path : `${cwd || '.'}/${path}`)
+const inRepo = (path: string): boolean => !!repo && (path === repo || path.startsWith(`${repo}/`))
+
+/** A Write or Edit inside the repo: remember its lines so the next look does not count them twice. */
+const credit = (path: string, text: string) => {
+  const abs = absolute(path)
+  if (inRepo(abs)) pay(paid, abs.slice(repo!.length + 1), text)
+}
+
+/** Outside a git repo the disk cannot be asked, so read what the tool was told to write. */
+const fromInput = async ($: any, e: any) => {
+  const found = e.tool === 'Bash' ? heredocs(String(e.command ?? '')) : String(e.tool).startsWith('mcp__') ? carried(e) : []
+  for (const w of found) {
+    const abs = absolute(w.path)
+    if (!inRepo(abs)) await record($, abs, w.text, 'others')
+  }
+}
+
 // The chat's main model. Writes by a subagent count under it too (an agent's own model is not offered).
 const sessionModel = async ($: any): Promise<string> => {
   try {
@@ -367,6 +457,8 @@ const sessionModel = async ($: any): Promise<string> => {
 
 // The saved copy keeps the 40 biggest files, so the key stays small.
 const trimStats = (s: Stats): Stats => ({ ...s, byFile: Object.fromEntries(top(s.byFile, 40)) })
+
+const changes = (s: Stats): number => s.writes + s.edits + (s.others ?? 0)
 
 let restored = false
 let ticking = false
@@ -382,7 +474,7 @@ const restore = async ($: any) => {
   const own = (await $.store.get(key)) as Own | undefined
   if (own && !ownCache) ownCache = own
   const cur = await read($, session)
-  if (own?.s && cur.writes + cur.edits === 0 && own.s.writes + own.s.edits > 0) await update($, session, () => own.s!)
+  if (own?.s && changes(cur) === 0 && changes(own.s) > 0) await update($, session, () => own.s!)
 }
 
 // Local timers only: no model call, nothing sent to the model. Started at session start, or again on the
@@ -764,6 +856,7 @@ const buildView = async ($: any, e: any, p: Prefs): Promise<View> => {
     minutes,
     writes: s.writes,
     edits: s.edits,
+    others: s.others ?? 0,
     byExt: top(s.byExt, 20),
     langToday: top(t.extsToday ?? {}, 20),
     langLife: top(t.extsLife ?? {}, 20),
@@ -808,6 +901,9 @@ export const register: Register = on => {
     Object.assign(anim, newAnim(now))
     lastActive = now
     cwd = (e as { cwd?: string }).cwd ?? ''
+    repo = undefined
+    base = undefined
+    paid = new Map()
     project = cwd.split('/').filter(Boolean).pop() || 'session'
     const self = PREFIX + (await $.session.id())
     await fold($, self, now)
@@ -992,22 +1088,53 @@ export const register: Register = on => {
     }
   })
 
-  on('tool.call', { tool: 'Write' }, async ($, e, next) => {
+  // Every tool call. Write, Edit and NotebookEdit are counted from what they were told to write; any other
+  // tool that may change files is followed by a look at the disk (in a git repo) or at its input (elsewhere).
+  on('tool.call', async ($, e, next) => {
+    const tool = String(e.tool)
+    if (quiet(tool)) return next(e)
+    const a = e as any
+    const direct: [string, string, Kind] | undefined =
+      tool === 'Write' ? [a.file_path, a.content, 'writes']
+      : tool === 'Edit' ? [a.file_path, a.new_string, 'edits']
+      : tool === 'NotebookEdit' ? [a.notebook_path, a.new_source ?? '', 'edits']
+      : undefined
+
+    if (!direct) await ready($).catch(() => {})
     const ran = await next(e)
-    if (ran.deny === undefined && ran.isError !== true) {
-      await record($, e.file_path, e.content, 'writes')
+    if (ran.deny !== undefined) return ran
+
+    try {
+      if (direct) {
+        if (ran.isError !== true && typeof direct[0] === 'string' && typeof direct[1] === 'string') {
+          await watchedRepo($)
+          credit(direct[0], direct[1])
+          await record($, direct[0], direct[1], direct[2])
+        }
+      } else if (ran.isReadOnly !== true) {
+        await look($, !(tool === 'Bash' && movesHistory(String(a.command ?? ''))))
+        if (ran.isError !== true) await fromInput($, a)
+      }
+    } catch {
+      // Counting must never get in a tool's way.
     }
 
     return ran
   })
 
-  on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
-    const ran = await next(e)
-    if (ran.deny === undefined && ran.isError !== true) {
-      await record($, e.file_path, e.new_string, 'edits')
-    }
+  // Between turns the person may edit files by hand: start each turn from the disk as it is, uncounted.
+  on('turn.start', async ($, e, next) => {
+    if (!(e as any).agentId && repo) void look($, false)
 
-    return ran
+    return next(e)
+  })
+
+  // When a turn ends, pick up what a terminal tab or a background command wrote after its tool call returned.
+  on('turn.complete', async ($, e, next) => {
+    const done = await next(e)
+    if (repo) void look($, true)
+
+    return done
   })
 
   // The band above the prompt: drawn by whichever design is chosen.
