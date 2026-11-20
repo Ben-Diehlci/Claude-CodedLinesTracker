@@ -148,6 +148,34 @@ export const countable = (commits: CloudCommit[]): CloudCommit[] => {
   return out
 }
 
+/** The file each computer leaves in the synced folder for other apps: cloud-<its id>.json (never read by the mod). */
+export const CLOUD_FILE_PREFIX = 'cloud-'
+
+export type CloudFile = PeerFile & { source: 'cloud'; scannedBy: string }
+
+/**
+ * The cloud lines as a totals file, for other apps that show the same Cloud row. Each computer writes its own
+ * (it only sees the cloud commits in its own repos); the mod itself reads only totals-*.json, so nothing is
+ * counted twice. Counts only, as in the totals file: no file names, repos or code.
+ */
+export const toCloudFile = (t: PeerFile, scannedBy: string, now: number): CloudFile => ({
+  v: 1,
+  id: 'cloud',
+  name: CLOUD_NAME,
+  at: now,
+  d: t.d,
+  today: t.today,
+  life: t.life,
+  days: t.days,
+  hours: t.hours,
+  modelsToday: t.modelsToday,
+  modelsLife: t.modelsLife,
+  extsToday: t.extsToday ?? {},
+  extsLife: t.extsLife ?? {},
+  source: 'cloud',
+  scannedBy,
+})
+
 /** Cloud lines in the shape another computer leaves in the synced folder, so they merge the same way. */
 export const cloudTotals = (commits: CloudCommit[], now: number): PeerFile & { sessions: number; commits: number } => {
   const today = dayKey(now)

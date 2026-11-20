@@ -14,7 +14,7 @@ import {
   newAnim,
 } from './clawd'
 import type { Outfit } from './clawd'
-import { BATCH, CLOUD_MODES, FIND_MS, SCAN_MS, cloudTotals, listArgs, parseLog, samePath, showArgs, skipDir } from './cloud'
+import { BATCH, CLOUD_FILE_PREFIX, CLOUD_MODES, FIND_MS, SCAN_MS, cloudTotals, toCloudFile, listArgs, parseLog, samePath, showArgs, skipDir } from './cloud'
 import type { CloudCommit } from './cloud'
 import { countLines, extOf } from './count'
 import { carried, heredocs, movesHistory, newLines, parseDiff, pay, rewritten, snapArgs, tooMuch } from './disk'
@@ -696,7 +696,18 @@ const rebuildCloud = async ($: any, now: number) => {
   const p = await read($, prefs)
   const all = Object.values(((await $.store.get(CLOUD_COMMITS)) ?? {}) as Record<string, CloudCommit>)
   const use = p.cloud === 'picked' ? all.filter(c => p.cloudRepos.some(r => samePath(r, c.r))) : all
-  await $.store.set(CLOUD_TOTALS, cloudTotals(use, now))
+  const ct = cloudTotals(use, now)
+  await $.store.set(CLOUD_TOTALS, ct)
+  if (p.cloud !== 'off') await shareCloud($, ct, now).catch(() => {})
+}
+
+/** With a synced folder set, leave the cloud lines there as cloud-<this computer>.json for other apps. */
+const shareCloud = async ($: any, ct: PeerFile, now: number) => {
+  const dir = await peerFolder($)
+  if (!dir) return
+  const me = await whoAmI($)
+  if (!me) return
+  await $.fs.write(`${dir}/${CLOUD_FILE_PREFIX}${me.id}.json`, JSON.stringify(toCloudFile(ct, me.id, now)))
 }
 
 /**

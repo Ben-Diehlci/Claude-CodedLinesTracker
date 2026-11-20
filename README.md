@@ -222,6 +222,8 @@ By default each computer counts alone. To see each computer and a combined count
 
 Each computer writes only its own small file there and reads the others. A computer never edits another's file, so the sync tool has nothing to conflict over. A computer that is off keeps its last numbers, shown with "last seen". `/linecount count both` (the default once a folder is set) adds them up; `/linecount count this` shows only this computer's numbers.
 
+With cloud counting on, each computer also leaves `cloud-<computer name>.json` there: its Cloud totals, for other apps that want to show the same Cloud row (a dashboard, say). The mod itself never reads these files, so nothing is counted twice. Each computer writes its own, because each one only sees the cloud commits in its own repos; an app reading them should pick one (this computer's, or else the newest) rather than add them up.
+
 ### Cloud sessions
 
 A cloud session runs in a container that is gone when the session ends, so the mod never sees its Write and Edit actions. What the session leaves behind is commits, and each one ends with lines like these:
@@ -246,7 +248,7 @@ What to know:
 - **Nothing is counted twice:** the same change found again (in a second clone, rebased or cherry-picked) counts once. A GitHub squash merge is skipped while the commits it squashed are still around, and counted once they are gone.
 - **Lock files** (`package-lock.json`, `yarn.lock`, `Cargo.lock`, `go.sum` and the like) and minified files are left out, since tools write them, not Claude.
 - Lines from commits already counted stay counted, even if that repo is later deleted. In **picked** mode only the picked repos' commits are shown.
-- With two-computer counting on, each computer shows the cloud commits in its own repos; they are not written to the synced folder.
+- With two-computer counting on, each computer shows the cloud commits in its own repos, and they are not added into the other computers' totals. Each computer also writes its Cloud totals to `cloud-<computer name>.json` in the synced folder after every scan, for other apps; the mod does not read those files back.
 
 ---
 
@@ -258,6 +260,7 @@ What to know:
   - your `/linecount` settings, in the same store
   - for each cloud commit counted: its time, session id, model and line counts (no file names or code), in the same store
   - with two-computer counting on, `totals-<computer name>.json` in your synced folder: line counts and the computer's model name (such as "MacBook Pro"), no file names or code
+  - with two-computer counting and cloud counting both on, `cloud-<computer name>.json` in your synced folder: the Cloud line counts (by day, hour, model and file type) and the computer's name, no file names, repo names or code
 - **Runs:** `scutil --get LocalHostName` and `system_profiler SPHardwareDataType` (macOS) to name the computer, when two-computer counting is on or cloud lines were found. With cloud counting on, `git log` and `git rev-parse` in your repos (read-only; git runs with repo hooks off).
 - **Never:** sends anything over the network (not even `git fetch`), asks a model anything, or changes your files. Your sync tool, not the mod, moves the totals file.
 
@@ -294,7 +297,7 @@ New versions are listed on the [releases page](https://github.com/Ben-Diehlci/Cl
 
 **Update (Hard install):** run `git pull` in your copy, then `/reload-plugins`.
 
-**Uninstall:** run `claude plugin uninstall lines-tracker@claude-codedlinestracker`, then `/reload-plugins` or start a new chat. If you set up two-computer counting, you can then delete that computer's `totals-<computer name>.json` from the synced folder.
+**Uninstall:** run `claude plugin uninstall lines-tracker@claude-codedlinestracker`, then `/reload-plugins` or start a new chat. If you set up two-computer counting, you can then delete that computer's `totals-<computer name>.json` (and `cloud-<computer name>.json`) from the synced folder.
 
 ---
 
